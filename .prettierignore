@@ -1,0 +1,7 @@
+assets/
+node_modules/
+.next/
+dist/
+package-lock.json
+**/src/generated/
+**/next-env.d.ts

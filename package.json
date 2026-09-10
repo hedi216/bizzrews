@@ -1,0 +1,39 @@
+{
+  "name": "bizzres",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "npm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others -n api,web \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev -w @bizzres/api",
+    "dev:web": "npm run dev -w @bizzres/web",
+    "build": "npm run build -w @bizzres/shared && npm run build -w @bizzres/api && npm run build -w @bizzres/web",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "npm run generate -w @bizzres/database",
+    "db:check": "npm run check -w @bizzres/database",
+    "db:migrate": "npm run migrate -w @bizzres/database",
+    "db:studio": "npm run studio -w @bizzres/database"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "16.3.4",
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.2.0",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "^3.6.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.0.0"
+  }
+}
