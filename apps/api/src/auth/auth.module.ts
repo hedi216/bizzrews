@@ -24,5 +24,6 @@ import { AuthRateLimitGuard } from './rate-limit';
     AccessTokenGuard,
     AuthRateLimitGuard,
   ],
+  exports: [AccessTokenGuard, JwtModule],
 })
 export class AuthModule {}

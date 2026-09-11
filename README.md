@@ -53,6 +53,8 @@ Account authentication uses email and password for BizzRes platform users. Confi
 
 Registration and login return a short-lived bearer access token. The opaque rotating refresh token is stored only in the `bizzres_refresh` HttpOnly, SameSite=Lax cookie scoped to `/api/v1/auth`; only its SHA-256 secret hash is stored in PostgreSQL. The cookie is Secure in production. Logout revokes the refresh session and clears the cookie, while an already-issued access token may remain valid until its approximately 15-minute expiry. The initial implementation has no email verification, password reset, OAuth, or MFA. Its auth rate limiter is process-local and must move to a shared store before running multiple API instances.
 
+Authenticated platform users can call `POST /api/v1/organizations` to atomically create an Organization, their active OWNER membership, and the first Business. Business slugs are globally unique, the initial marketplace visibility is `UNLISTED`, timezones use IANA identifiers, and default currencies use uppercase three-letter codes. `GET /api/v1/organizations` returns the caller's active organization memberships and their current non-archived Businesses.
+
 ```sh
 npm run db:generate  # Generate client locally; no database required
 npm run db:check     # Read-only SELECT 1; requires configured access
