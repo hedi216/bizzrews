@@ -16,6 +16,9 @@ const expectedTables = [
   'Occurrence',
   'Reservation',
   'ReservationEvent',
+  'FieldDefinition',
+  'FieldOption',
+  'ReservationAnswer',
 ].sort();
 let client;
 let transaction = false;

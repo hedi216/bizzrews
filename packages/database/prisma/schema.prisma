@@ -35,6 +35,18 @@ enum ActorKind {
   SYSTEM
 }
 
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  RADIO
+  CHECKBOX
+  MULTISELECT
+  DATE
+  TIME
+}
+
 model User {
   id              String               @id @default(uuid()) @db.Uuid
   email           String
@@ -127,10 +139,11 @@ model ExperienceRevision {
   updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
   publishedAt       DateTime? @db.Timestamptz(3)
 
-  experience             Experience    @relation("ExperienceRevisions", fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  experience             Experience        @relation("ExperienceRevisions", fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
   // The composite publication FK limits this inverse to its owning Experience.
-  publishedByExperiences Experience[]  @relation("PublishedRevision")
+  publishedByExperiences Experience[]      @relation("PublishedRevision")
   reservations           Reservation[]
+  fields                 FieldDefinition[]
 
   @@unique([organizationId, experienceId, version])
   @@unique([organizationId, experienceId, id])
@@ -179,11 +192,13 @@ model Reservation {
   createdAt          DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
 
-  revision   ExperienceRevision @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
-  occurrence Occurrence         @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  revision   ExperienceRevision  @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  occurrence Occurrence          @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
   events     ReservationEvent[]
+  answers    ReservationAnswer[]
 
   @@unique([organizationId, id])
+  @@unique([organizationId, experienceId, revisionId, id])
   @@index([organizationId, occurrenceId, status])
   @@index([organizationId, startAt])
 }
@@ -203,4 +218,65 @@ model ReservationEvent {
   actorMember OrganizationMember? @relation(fields: [organizationId, actorMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([organizationId, reservationId, createdAt])
+}
+
+model FieldDefinition {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  experienceId   String    @db.Uuid
+  revisionId     String    @db.Uuid
+  key            String    @db.VarChar(63)
+  label          String
+  type           FieldType
+  required       Boolean   @default(false)
+  position       Int
+  placeholder    String?
+  helpText       String?
+  validation     Json?     @db.JsonB
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  revision ExperienceRevision  @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  options  FieldOption[]
+  answers  ReservationAnswer[]
+
+  @@unique([organizationId, experienceId, revisionId, key])
+  @@unique([organizationId, experienceId, revisionId, id])
+  @@index([organizationId, experienceId, revisionId, position, id])
+}
+
+model FieldOption {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @db.Uuid
+  experienceId      String   @db.Uuid
+  revisionId        String   @db.Uuid
+  fieldDefinitionId String   @db.Uuid
+  key               String   @db.VarChar(63)
+  label             String
+  position          Int
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  fieldDefinition FieldDefinition @relation(fields: [organizationId, experienceId, revisionId, fieldDefinitionId], references: [organizationId, experienceId, revisionId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, experienceId, revisionId, fieldDefinitionId, key])
+  @@index([organizationId, experienceId, revisionId, fieldDefinitionId, position, id])
+}
+
+model ReservationAnswer {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @db.Uuid
+  experienceId       String   @db.Uuid
+  revisionId         String   @db.Uuid
+  reservationId      String   @db.Uuid
+  fieldDefinitionId  String   @db.Uuid
+  value              Json     @db.JsonB
+  snapshotVersion    Int      @default(1)
+  definitionSnapshot Json     @db.JsonB
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+
+  reservation     Reservation     @relation(fields: [organizationId, experienceId, revisionId, reservationId], references: [organizationId, experienceId, revisionId, id], onDelete: Restrict, onUpdate: NoAction)
+  fieldDefinition FieldDefinition @relation(fields: [organizationId, experienceId, revisionId, fieldDefinitionId], references: [organizationId, experienceId, revisionId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, reservationId, fieldDefinitionId])
 }
