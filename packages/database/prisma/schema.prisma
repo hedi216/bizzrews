@@ -8,4 +8,199 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models will be designed in a later step.
+enum MemberRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum MarketplaceVisibility {
+  UNLISTED
+  LISTED
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum ReservationEventType {
+  CREATED
+  CANCELLED
+}
+
+enum ActorKind {
+  MEMBER
+  GUEST
+  SYSTEM
+}
+
+model User {
+  id              String               @id @default(uuid()) @db.Uuid
+  email           String
+  normalizedEmail String               @unique
+  displayName     String?
+  disabledAt      DateTime?            @db.Timestamptz(3)
+  createdAt       DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+  memberships     OrganizationMember[]
+}
+
+model Organization {
+  id         String               @id @default(uuid()) @db.Uuid
+  name       String
+  archivedAt DateTime?            @db.Timestamptz(3)
+  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime             @updatedAt @db.Timestamptz(3)
+  members    OrganizationMember[]
+  businesses Business[]
+}
+
+model OrganizationMember {
+  id             String     @id @default(uuid()) @db.Uuid
+  organizationId String     @db.Uuid
+  userId         String     @db.Uuid
+  role           MemberRole
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reservationEvents ReservationEvent[]
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, id])
+  @@index([userId])
+}
+
+model Business {
+  id                    String                @id @default(uuid()) @db.Uuid
+  organizationId        String                @db.Uuid
+  name                  String
+  slug                  String                @unique
+  description           String?
+  timezone              String
+  defaultCurrency       String                @db.Char(3)
+  marketplaceVisibility MarketplaceVisibility @default(UNLISTED)
+  archivedAt            DateTime?             @db.Timestamptz(3)
+  createdAt             DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime              @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  experiences  Experience[]
+
+  @@unique([organizationId, id])
+}
+
+model Experience {
+  id                    String    @id @default(uuid()) @db.Uuid
+  organizationId        String    @db.Uuid
+  businessId            String    @db.Uuid
+  slug                  String
+  publishedRevisionId   String?   @db.Uuid
+  acceptingReservations Boolean   @default(false)
+  archivedAt            DateTime? @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  business          Business             @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  revisions         ExperienceRevision[] @relation("ExperienceRevisions")
+  publishedRevision ExperienceRevision?  @relation("PublishedRevision", fields: [organizationId, id, publishedRevisionId], references: [organizationId, experienceId, id], onDelete: NoAction, onUpdate: NoAction)
+  occurrences       Occurrence[]
+
+  @@unique([organizationId, id])
+  @@unique([businessId, slug])
+}
+
+model ExperienceRevision {
+  id                String    @id @default(uuid()) @db.Uuid
+  organizationId    String    @db.Uuid
+  experienceId      String    @db.Uuid
+  version           Int
+  name              String
+  description       String?
+  cancellationTerms String?
+  priceAmount       Decimal   @default(0) @db.Decimal(19, 4)
+  currency          String    @db.Char(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  publishedAt       DateTime? @db.Timestamptz(3)
+
+  experience             Experience    @relation("ExperienceRevisions", fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  // The composite publication FK limits this inverse to its owning Experience.
+  publishedByExperiences Experience[]  @relation("PublishedRevision")
+  reservations           Reservation[]
+
+  @@unique([organizationId, experienceId, version])
+  @@unique([organizationId, experienceId, id])
+}
+
+model Occurrence {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @db.Uuid
+  experienceId    String    @db.Uuid
+  startAt         DateTime  @db.Timestamptz(3)
+  endAt           DateTime  @db.Timestamptz(3)
+  timezone        String
+  capacity        Int
+  bookingClosesAt DateTime? @db.Timestamptz(3)
+  cancelledAt     DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  experience   Experience    @relation(fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  reservations Reservation[]
+
+  @@unique([organizationId, experienceId, id])
+  @@unique([organizationId, experienceId, startAt, endAt])
+}
+
+model Reservation {
+  id                 String            @id @default(uuid()) @db.Uuid
+  organizationId     String            @db.Uuid
+  experienceId       String            @db.Uuid
+  revisionId         String            @db.Uuid
+  occurrenceId       String            @db.Uuid
+  status             ReservationStatus @default(CONFIRMED)
+  customerFullName   String
+  customerPhone      String
+  customerEmail      String
+  startAt            DateTime          @db.Timestamptz(3)
+  endAt              DateTime          @db.Timestamptz(3)
+  timezone           String
+  participantCount   Int
+  totalAmount        Decimal           @db.Decimal(19, 4)
+  currency           String            @db.Char(3)
+  snapshotVersion    Int               @default(1)
+  experienceSnapshot Json              @db.JsonB
+  cancelledAt        DateTime?         @db.Timestamptz(3)
+  cancellationReason String?
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
+
+  revision   ExperienceRevision @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  occurrence Occurrence         @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  events     ReservationEvent[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, occurrenceId, status])
+  @@index([organizationId, startAt])
+}
+
+model ReservationEvent {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  reservationId  String               @db.Uuid
+  type           ReservationEventType
+  actorKind      ActorKind
+  actorMemberId  String?              @db.Uuid
+  payloadVersion Int                  @default(1)
+  payload        Json                 @db.JsonB
+  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
+
+  reservation Reservation         @relation(fields: [organizationId, reservationId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  actorMember OrganizationMember? @relation(fields: [organizationId, actorMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, reservationId, createdAt])
+}

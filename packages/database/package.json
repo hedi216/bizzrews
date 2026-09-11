@@ -13,9 +13,10 @@
   "scripts": {
     "generate": "prisma generate",
     "check": "npm run build && node --env-file-if-exists=../../.env scripts/check-connection.mjs",
+    "test:integrity": "node --env-file-if-exists=../../.env scripts/verify-domain.mjs",
     "build": "npm run generate && tsc",
     "typecheck": "tsc --noEmit && tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext prisma.config.ts",
-    "migrate": "node --env-file-if-exists=../../.env scripts/require-database-url.mjs && prisma migrate dev",
+    "migrate": "node --env-file-if-exists=../../.env scripts/require-migration-env.mjs && prisma migrate dev",
     "studio": "node --env-file-if-exists=../../.env scripts/require-database-url.mjs && prisma studio"
   },
   "dependencies": {

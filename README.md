@@ -1,6 +1,6 @@
 # BizzRes
 
-BizzRes is an API-first modular monolith foundation. The independent NestJS REST API will support web, mobile, embedded widgets, and integrations as the product evolves. No business features, authentication, or domain models are implemented yet.
+BizzRes is an API-first modular monolith foundation. The independent NestJS REST API will support web, mobile, embedded widgets, and integrations as the product evolves. The first booking schema contains nine models; no business APIs, authentication, or business UI are implemented.
 
 ## Structure
 
@@ -37,19 +37,13 @@ The API defaults to port 4000. `GET http://localhost:4000/api/v1/health` returns
 
 ## Environment and PostgreSQL
 
-Local development targets PostgreSQL 17 at `localhost:5432`, database `bizzres_dev`, application role `bizzres_app`, schema `public`. Service `postgresql-x64-17` was running and accepting connections during setup, but administrator authentication required an unavailable password. Role/database creation was not attempted; their existence and application connectivity are not yet verified. No migrations or domain tables have been created.
+Local development uses PostgreSQL 17 at `localhost:5432`, database `bizzres_dev`, application role `bizzres_app`, schema `public`. The role owns the development database and retains NOSUPERUSER, NOCREATEDB, and NOCREATEROLE. The local Windows service is `postgresql-x64-17`.
 
-Root `.env` is the single local backend/database environment file and is ignored by Git. An empty DATABASE_URL placeholder has been prepared; on a fresh checkout, copy `.env.example` to `.env`. API and connectivity-check scripts load it using Node's environment-file support. Prisma 7 CLI loads the same file with dotenv in `packages/database/prisma.config.ts`, resolved relative to that config rather than the working directory. Existing process environment variables take precedence. Never commit DATABASE_URL or duplicate it into the web environment. `.env.example` remains documentation only.
+Root `.env` is the single local backend/database environment file and is ignored by Git. It holds DATABASE_URL and SHADOW_DATABASE_URL; neither value belongs in source control or the web environment. API and connectivity-check scripts load it using Node's environment-file support. Prisma 7 CLI loads the same file with dotenv in `packages/database/prisma.config.ts`, resolved relative to that config rather than the working directory. Existing process environment variables take precedence. `.env.example` contains empty documentation placeholders only.
 
-Administrator access is needed next. In your own PowerShell window, run:
+Prisma development migrations require a separate disposable `bizzres_shadow` database owned by `bizzres_app`. Provisioning that database requires temporary administrative access; subsequent migrations use only `bizzres_app`. Administrator credentials must be entered through a local non-echoed password prompt, kept only in process memory, and never stored in the repository or `.env`. Do not grant CREATEDB or SUPERUSER to the application role or change PostgreSQL authentication settings.
 
-```powershell
-& 'C:\Program Files\PostgreSQL\17\bin\psql.exe' -X -W -h localhost -p 5432 -U postgres -d postgres
-```
-
-Enter the existing administrator password only in the hidden local prompt; do not paste it into chat or source files. An authenticated administrator must then create or verify `bizzres_app` as a LOGIN role with NOSUPERUSER, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS, and create or verify `bizzres_dev` owned by that role. Do not alter existing objects without checking their ownership and intended use. Set a strong unique local role password using psql's non-echoed `\password bizzres_app` command, then configure root `.env` privately with the application URL. Percent-encode reserved password characters in the URL. Never use the administrator account in the application URL.
-
-Prisma `migrate dev` also needs a shadow database: before the first future migration, explicitly choose either local-only CREATEDB permission for `bizzres_app` or a separately provisioned dedicated shadow database. Ownership of `bizzres_dev` alone does not grant shadow-database creation. No such permission or shadow database has been created in this step.
+SHADOW_DATABASE_URL uses the existing application's connection credentials but names `bizzres_shadow`. Prisma 7 reads it through `datasource.shadowDatabaseUrl` in `prisma.config.ts`. Prisma replays migration history in this disposable database; it must never point to the development database or contain unrelated data. The migration command checks both URLs against the approved local database names before invoking Prisma.
 
 Production database credentials must be completely separate from local development credentials. Production migration privileges should be planned separately from application runtime privileges.
 
@@ -58,11 +52,18 @@ Next.js uses its own environment-file convention: when needed, create ignored `a
 ```sh
 npm run db:generate  # Generate client locally; no database required
 npm run db:check     # Read-only SELECT 1; requires configured access
-npm run db:migrate   # Future use only: requires a valid DATABASE_URL
+npm run db:migrate   # Requires both approved local databases and their URLs
 npm run db:studio    # Requires a valid DATABASE_URL
+npm run test:integrity -w @bizzres/database # Database tests; all fixtures roll back
 ```
 
-Prisma 7 stores the datasource URL in `packages/database/prisma.config.ts`; the schema declares the PostgreSQL provider and generator only. Generated client code is ignored and recreated by generation/build/typecheck. Migration and Studio scripts refuse to run with an empty URL. Do not run migrations until database setup and the first domain model are explicitly agreed. Review migration changes and any reset prompt before proceeding.
+Prisma remains centralized in `packages/database`. Generated client code is ignored and recreated by generation/build/typecheck. Schema changes use migration history; never use `db push` or destructive reset commands. Generate a draft migration with `npm run migrate -w @bizzres/database -- --create-only --name <name>`, inspect its SQL and custom constraints, then apply the reviewed migration with `npm run db:migrate`. Do not edit a migration after it has been applied.
+
+The applied `initial_booking_domain` migration creates exactly User, Organization, OrganizationMember, Business, Experience, ExperienceRevision, Occurrence, Reservation, and ReservationEvent. Prisma's `_prisma_migrations` table is metadata, not a domain table. Organization is the tenant boundary; Business is the public/commercial entity. Reservations are booking-specific and retain mandatory customer identity snapshots.
+
+The migration's SQL adds tenant-aware foreign keys, CHECK constraints, published-revision immutability, draft-publication rejection, and append-only reservation events. Published revisions reject every later UPDATE, including changes to Prisma's `updatedAt`, and DELETE; the first publication update remains valid. These triggers protect ordinary DML, not an administrator deliberately disabling constraints. Do not add custom-form, scheduling, resource, payment, or order models in this first slice.
+
+The integrity test command is restricted to local `bizzres_dev`. It uses savepoints to verify exact SQLSTATE/constraint failures, rolls back all fixture changes, and verifies table counts are unchanged. It does not test business authorization, capacity-locking services, email normalization, or IANA timezone validation; those application behaviors are deferred.
 
 PostgreSQL tools were found at `C:\Program Files\PostgreSQL\17\bin` but were not on PATH. Use the full executable path or add this directory to your own PATH when database setup is needed.
 
