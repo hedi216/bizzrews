@@ -17,6 +17,8 @@ const expectedTables = [
   'ReservationAnswer',
   'ReservationEvent',
   'User',
+  'PasswordCredential',
+  'AuthSession',
 ].sort();
 let client;
 let transaction = false;

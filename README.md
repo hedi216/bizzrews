@@ -33,7 +33,7 @@ npm run dev
 
 On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd` in place of `npm`. No execution-policy change is necessary. All tools are project-local; the repository uses npm workspaces and one root package-lock.json. Use `npm ci` for reproducible installs once the lockfile exists.
 
-The API defaults to port 4000. `GET http://localhost:4000/api/v1/health` returns `{"status":"ok"}` without a database. The web application runs at http://localhost:3000. The API uses URI versioning, security headers, port validation, and graceful shutdown hooks. Cross-origin access policy will be configured when a real frontend integration requires it.
+The API defaults to port 4000. `GET http://localhost:4000/api/v1/health` returns `{"status":"ok"}` without a database. The web application runs at http://localhost:3000. The API uses URI versioning, security headers, port validation, graceful shutdown hooks, and credentialed CORS restricted to `CORS_ORIGIN`.
 
 ## Environment and PostgreSQL
 
@@ -48,6 +48,10 @@ SHADOW_DATABASE_URL uses the existing application's connection credentials but n
 Production database credentials must be completely separate from local development credentials. Production migration privileges should be planned separately from application runtime privileges.
 
 Next.js uses its own environment-file convention: when needed, create ignored `apps/web/.env.local` containing only web-specific settings such as `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1`. Never put DATABASE_URL in the web environment. Values prefixed with NEXT_PUBLIC_ are public and embedded at build time. The placeholder page does not call the API yet.
+
+Account authentication uses email and password for BizzRes platform users. Configure `JWT_ACCESS_SECRET` only in the ignored root `.env`; it must contain at least 32 bytes of unpredictable material. `JWT_ACCESS_TTL_SECONDS` defaults to 900, `AUTH_REFRESH_TTL_DAYS` defaults to 30, and `CORS_ORIGIN` identifies the single trusted web origin (`http://localhost:3000` locally). Keep the placeholder secret empty in `.env.example`.
+
+Registration and login return a short-lived bearer access token. The opaque rotating refresh token is stored only in the `bizzres_refresh` HttpOnly, SameSite=Lax cookie scoped to `/api/v1/auth`; only its SHA-256 secret hash is stored in PostgreSQL. The cookie is Secure in production. Logout revokes the refresh session and clears the cookie, while an already-issued access token may remain valid until its approximately 15-minute expiry. The initial implementation has no email verification, password reset, OAuth, or MFA. Its auth rate limiter is process-local and must move to a shared store before running multiple API instances.
 
 ```sh
 npm run db:generate  # Generate client locally; no database required
