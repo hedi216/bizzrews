@@ -13,6 +13,11 @@ import type {
   UpdateExperienceDto,
 } from './dto/experience.dto';
 import { OrganizationAccessService } from './organization-access.service';
+import {
+  optionTypes,
+  validateFieldKey,
+  validateFieldRules,
+} from './field-validation';
 
 const revisionSelect = {
   id: true,
@@ -229,6 +234,220 @@ export class ExperiencesService {
       select: revisionSelect,
     });
     return this.revision(draft);
+  }
+
+  async publish(userId: string, experienceId: string) {
+    return this.database.client.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Experience" WHERE "id" = ${experienceId}::uuid FOR UPDATE`;
+      const experience = await tx.experience.findFirst({
+        where: {
+          id: experienceId,
+          archivedAt: null,
+          business: { archivedAt: null },
+        },
+        select: {
+          id: true,
+          slug: true,
+          acceptingReservations: true,
+          organizationId: true,
+          business: {
+            select: {
+              organization: {
+                select: {
+                  members: {
+                    where: { userId, active: true },
+                    select: { role: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!experience || !experience.business.organization.members[0])
+        throw new NotFoundException('Resource not found.');
+      if (experience.business.organization.members[0].role === 'STAFF')
+        throw new ForbiddenException();
+      const drafts = await tx.experienceRevision.findMany({
+        where: { experienceId, publishedAt: null },
+        take: 2,
+        include: { fields: { include: { options: true } } },
+      });
+      if (drafts.length > 1)
+        throw new InternalServerErrorException(
+          'Experience draft integrity error.',
+        );
+      const draft = drafts[0];
+      if (!draft)
+        throw new ConflictException(
+          'No editable draft exists for this experience.',
+        );
+      await tx.$queryRaw`SELECT "id" FROM "ExperienceRevision" WHERE "id" = ${draft.id}::uuid FOR UPDATE`;
+      for (const field of draft.fields) {
+        validateFieldKey(field.key);
+        validateFieldRules(
+          field.type,
+          field.validation as Record<string, unknown> | null,
+        );
+        if (optionTypes.includes(field.type) && field.options.length === 0)
+          throw new ConflictException(
+            'Choice fields require at least one option.',
+          );
+        if (!optionTypes.includes(field.type) && field.options.length !== 0)
+          throw new ConflictException('This field type cannot have options.');
+      }
+      const now = new Date();
+      const published = await tx.experienceRevision.update({
+        where: { id: draft.id },
+        data: { publishedAt: now },
+        select: revisionSelect,
+      });
+      const updated = await tx.experience.update({
+        where: { id: experienceId },
+        data: { publishedRevisionId: draft.id },
+        select: {
+          id: true,
+          slug: true,
+          publishedRevisionId: true,
+          acceptingReservations: true,
+        },
+      });
+      return {
+        experience: updated,
+        publishedRevision: this.revision(published),
+      };
+    });
+  }
+
+  async createDraft(userId: string, experienceId: string) {
+    return this.database.client.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Experience" WHERE "id" = ${experienceId}::uuid FOR UPDATE`;
+      const experience = await tx.experience.findFirst({
+        where: {
+          id: experienceId,
+          archivedAt: null,
+          business: { archivedAt: null },
+        },
+        select: {
+          id: true,
+          organizationId: true,
+          publishedRevisionId: true,
+          business: {
+            select: {
+              organization: {
+                select: {
+                  members: {
+                    where: { userId, active: true },
+                    select: { role: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!experience || !experience.business.organization.members[0])
+        throw new NotFoundException('Resource not found.');
+      if (experience.business.organization.members[0].role === 'STAFF')
+        throw new ForbiddenException();
+      if (!experience.publishedRevisionId)
+        throw new ConflictException(
+          'No published revision exists for this experience.',
+        );
+      if (
+        await tx.experienceRevision.findFirst({
+          where: { experienceId, publishedAt: null },
+          select: { id: true },
+        })
+      )
+        throw new ConflictException('An editable draft already exists.');
+      const source = await tx.experienceRevision.findFirst({
+        where: {
+          id: experience.publishedRevisionId,
+          experienceId,
+          organizationId: experience.organizationId,
+          publishedAt: { not: null },
+        },
+        include: {
+          fields: {
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            include: {
+              options: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+            },
+          },
+        },
+      });
+      if (!source)
+        throw new InternalServerErrorException(
+          'Published revision integrity error.',
+        );
+      const maximum = await tx.experienceRevision.aggregate({
+        where: { experienceId },
+        _max: { version: true },
+      });
+      const draft = await tx.experienceRevision.create({
+        data: {
+          organizationId: experience.organizationId,
+          experienceId,
+          version: (maximum._max.version ?? 0) + 1,
+          name: source.name,
+          description: source.description,
+          cancellationTerms: source.cancellationTerms,
+          priceAmount: source.priceAmount,
+          currency: source.currency,
+        },
+        select: revisionSelect,
+      });
+      const fields = [];
+      for (const field of source.fields) {
+        const cloned = await tx.fieldDefinition.create({
+          data: {
+            organizationId: experience.organizationId,
+            experienceId,
+            revisionId: draft.id,
+            key: field.key,
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            position: field.position,
+            placeholder: field.placeholder,
+            helpText: field.helpText,
+            validation: field.validation ?? undefined,
+          },
+          select: {
+            id: true,
+            key: true,
+            label: true,
+            type: true,
+            required: true,
+            position: true,
+            placeholder: true,
+            helpText: true,
+            validation: true,
+          },
+        });
+        const options = [];
+        for (const option of field.options)
+          options.push(
+            await tx.fieldOption.create({
+              data: {
+                organizationId: experience.organizationId,
+                experienceId,
+                revisionId: draft.id,
+                fieldDefinitionId: cloned.id,
+                key: option.key,
+                label: option.label,
+                position: option.position,
+              },
+              select: { id: true, key: true, label: true, position: true },
+            }),
+          );
+        fields.push({ ...cloned, options });
+      }
+      return { ...this.revision(draft), fields };
+    });
   }
 
   private singleDraft<

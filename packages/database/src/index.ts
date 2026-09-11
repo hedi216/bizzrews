@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './generated/prisma/client';
+import { Prisma, PrismaClient } from './generated/prisma/client';
 
-export { PrismaClient };
+export { Prisma, PrismaClient };
 
 // The API database provider owns one client and its shutdown lifecycle.
 // Importing this package never creates a connection.

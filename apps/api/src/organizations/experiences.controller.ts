@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -59,5 +61,20 @@ export class ExperiencesController {
     @Body() input: UpdateDraftDto,
   ) {
     return this.experiences.updateDraft(auth.sub, experienceId, input);
+  }
+  @Post('experiences/:experienceId/publish')
+  @HttpCode(HttpStatus.OK)
+  publish(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('experienceId', ParseUUIDPipe) experienceId: string,
+  ) {
+    return this.experiences.publish(auth.sub, experienceId);
+  }
+  @Post('experiences/:experienceId/draft')
+  createDraft(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('experienceId', ParseUUIDPipe) experienceId: string,
+  ) {
+    return this.experiences.createDraft(auth.sub, experienceId);
   }
 }

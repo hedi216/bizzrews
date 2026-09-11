@@ -8,6 +8,8 @@ import { BusinessesController } from './businesses.controller';
 import { BusinessesService } from './businesses.service';
 import { ExperiencesController } from './experiences.controller';
 import { ExperiencesService } from './experiences.service';
+import { DraftFieldsController } from './draft-fields.controller';
+import { DraftFieldsService } from './draft-fields.service';
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -15,12 +17,14 @@ import { ExperiencesService } from './experiences.service';
     OrganizationsController,
     BusinessesController,
     ExperiencesController,
+    DraftFieldsController,
   ],
   providers: [
     OrganizationsService,
     OrganizationAccessService,
     BusinessesService,
     ExperiencesService,
+    DraftFieldsService,
   ],
 })
 export class OrganizationsModule {}
