@@ -55,6 +55,8 @@ Registration and login return a short-lived bearer access token. The opaque rota
 
 Authenticated platform users can call `POST /api/v1/organizations` to atomically create an Organization, their active OWNER membership, and the first Business. Business slugs are globally unique, the initial marketplace visibility is `UNLISTED`, timezones use IANA identifiers, and default currencies use uppercase three-letter codes. `GET /api/v1/organizations` returns the caller's active organization memberships and their current non-archived Businesses.
 
+Active organization members can read Businesses and Experiences through `GET /api/v1/organizations/:organizationId/businesses`, `GET /api/v1/businesses/:businessId`, `GET /api/v1/businesses/:businessId/experiences`, and `GET /api/v1/experiences/:experienceId`. OWNER and MANAGER members can create or update Businesses and create Experiences through the corresponding `POST`/`PATCH` endpoints. Creating an Experience also creates its unpublished version-1 draft atomically; draft content is edited with `PATCH /api/v1/experiences/:experienceId/draft`, while `PATCH /api/v1/experiences/:experienceId` changes only its slug. Monetary values use decimal strings. STAFF membership is read-only, and publication is not implemented yet.
+
 ```sh
 npm run db:generate  # Generate client locally; no database required
 npm run db:check     # Read-only SELECT 1; requires configured access
