@@ -102,6 +102,23 @@ enum PaymentMode {
   DEPOSIT
 }
 
+enum OrderStatus {
+  PLACED
+  CANCELLED
+  FULFILLED
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  DELIVERY
+}
+
+enum FulfillmentStatus {
+  PENDING
+  FULFILLED
+  CANCELLED
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   email                String
@@ -115,6 +132,7 @@ model User {
   authSessions         AuthSession[]
   customerReservations Reservation[]            @relation("CustomerReservations")
   loyaltyAccounts      CustomerLoyaltyAccount[]
+  customerOrders       Order[]
 }
 
 model Organization {
@@ -170,6 +188,9 @@ model Business {
   customerLoyaltyTransactions CustomerLoyaltyTransaction[]
   rewardAccount               BusinessRewardAccount?
   rewardTransactions          BusinessRewardTransaction[]
+  products                    Product[]
+  productVariants             ProductVariant[]
+  orders                      Order[]
 
   @@unique([organizationId, id])
 }
@@ -194,6 +215,116 @@ model Experience {
   @@unique([organizationId, id])
   @@unique([organizationId, businessId, id])
   @@unique([businessId, slug])
+}
+
+model Product {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  businessId     String    @db.Uuid
+  name           String    @db.VarChar(160)
+  slug           String    @db.VarChar(63)
+  description    String?
+  archivedAt     DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  business   Business         @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  variants   ProductVariant[]
+  orderLines OrderLine[]
+
+  @@unique([organizationId, businessId, id])
+  @@unique([businessId, slug])
+  @@index([organizationId, businessId, archivedAt])
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  productId      String   @db.Uuid
+  key            String   @db.VarChar(63)
+  name           String   @db.VarChar(160)
+  sku            String?  @db.VarChar(100)
+  priceAmount    Decimal  @db.Decimal(19, 4)
+  currency       String   @db.Char(3)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  business   Business    @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  product    Product     @relation(fields: [organizationId, businessId, productId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  orderLines OrderLine[]
+
+  @@unique([organizationId, businessId, productId, id])
+  @@unique([organizationId, productId, key])
+  @@unique([businessId, sku])
+  @@index([organizationId, businessId, productId, active])
+}
+
+model Order {
+  id                 String      @id @default(uuid()) @db.Uuid
+  organizationId     String      @db.Uuid
+  businessId         String      @db.Uuid
+  customerUserId     String?     @db.Uuid
+  status             OrderStatus @default(PLACED)
+  customerFullName   String
+  customerPhone      String
+  customerEmail      String
+  totalAmount        Decimal     @db.Decimal(19, 4)
+  currency           String      @db.Char(3)
+  cancelledAt        DateTime?   @db.Timestamptz(3)
+  cancellationReason String?
+  createdAt          DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime    @updatedAt @db.Timestamptz(3)
+
+  business     Business          @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  customerUser User?             @relation(fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  lines        OrderLine[]
+  fulfillment  OrderFulfillment?
+
+  @@unique([organizationId, businessId, id])
+  @@unique([organizationId, id])
+  @@index([organizationId, businessId, createdAt])
+  @@index([customerUserId, createdAt])
+}
+
+model OrderLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  businessId      String   @db.Uuid
+  orderId         String   @db.Uuid
+  productId       String   @db.Uuid
+  variantId       String   @db.Uuid
+  quantity        Int
+  unitAmount      Decimal  @db.Decimal(19, 4)
+  lineTotalAmount Decimal  @db.Decimal(19, 4)
+  snapshotVersion Int      @default(1)
+  productSnapshot Json     @db.JsonB
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  order   Order          @relation(fields: [organizationId, businessId, orderId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  product Product        @relation(fields: [organizationId, businessId, productId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  variant ProductVariant @relation(fields: [organizationId, businessId, productId, variantId], references: [organizationId, businessId, productId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, businessId, orderId, createdAt])
+}
+
+model OrderFulfillment {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @db.Uuid
+  businessId      String            @db.Uuid
+  orderId         String            @db.Uuid
+  method          FulfillmentMethod
+  status          FulfillmentStatus @default(PENDING)
+  deliveryAddress Json?             @db.JsonB
+  fulfilledAt     DateTime?         @db.Timestamptz(3)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+
+  order Order @relation(fields: [organizationId, businessId, orderId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, businessId, orderId])
+  @@index([organizationId, businessId, status, createdAt])
 }
 
 model ExperienceRevision {

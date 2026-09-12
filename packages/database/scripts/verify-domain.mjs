@@ -31,6 +31,11 @@ const expectedTables = [
   'BusinessRewardTransaction',
   'Notification',
   'PageBlock',
+  'Product',
+  'ProductVariant',
+  'Order',
+  'OrderLine',
+  'OrderFulfillment',
 ].sort();
 let client;
 let transaction = false;
