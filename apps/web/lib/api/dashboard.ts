@@ -59,6 +59,15 @@ export type Revision = {
       position: number;
     }>;
   }>;
+  pageBlocks?: PageBlock[];
+};
+export type PageBlockType =
+  'HERO' | 'TEXT' | 'GALLERY' | 'LOCATION' | 'ITINERARY' | 'FORM' | 'CTA';
+export type PageBlock = {
+  id: string;
+  type: PageBlockType;
+  position: number;
+  config: Record<string, unknown>;
 };
 export type DraftField = NonNullable<Revision['fields']>[number];
 export const fieldTypes = [
@@ -467,4 +476,31 @@ export const dashboardApi = {
       method: 'POST',
       body: JSON.stringify({ reason: reason || null }),
     }),
+  createPageBlock: (
+    token: string,
+    experienceId: string,
+    body: Omit<PageBlock, 'id'>,
+  ) =>
+    request<PageBlock>(
+      `/experiences/${experienceId}/draft/page-blocks`,
+      token,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  updatePageBlock: (
+    token: string,
+    experienceId: string,
+    id: string,
+    body: Partial<Omit<PageBlock, 'id'>>,
+  ) =>
+    request<PageBlock>(
+      `/experiences/${experienceId}/draft/page-blocks/${id}`,
+      token,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  deletePageBlock: (token: string, experienceId: string, id: string) =>
+    request<void>(
+      `/experiences/${experienceId}/draft/page-blocks/${id}`,
+      token,
+      { method: 'DELETE' },
+    ),
 };

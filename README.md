@@ -69,6 +69,8 @@ Business rewards use a completely separate Business-owned account and append-onl
 
 Reservation confirmation and cancellation create provider-neutral email outbox records inside the same database transaction. They remain `PENDING` until a future delivery worker and provider are configured; the application does not claim that an email was delivered. Reminder scheduling is represented by the outbox model but is not yet generated.
 
+Experience drafts support ordered public presentation blocks through `POST`, `PATCH`, and `DELETE /api/v1/experiences/:experienceId/draft/page-blocks`. Blocks are cloned with new IDs into each next draft and become immutable with their published revision. Page JSON controls presentation only; custom fields, scheduling, capacity, and price remain authoritative relational data.
+
 The public web booking page is available at `/:businessSlug/:experienceSlug`. It renders explicit occurrences or generated appointment slots, all published custom field types, mandatory guest details, a review step, and the recorded reservation confirmation. Publishing and opening reservations remain separate business actions; the web page never claims that an email was sent.
 
 Business users sign in at `/login` and manage active Organizations, Businesses, Experiences, draft questions, Resources, availability, Occurrences, and reservations at `/dashboard`. Access tokens remain in memory and reloads restore authentication through the rotating HttpOnly refresh cookie. OWNER and MANAGER controls mutate through authenticated APIs; STAFF access stays read-only and backend authorization remains authoritative.

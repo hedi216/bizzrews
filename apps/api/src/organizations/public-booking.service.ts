@@ -31,6 +31,10 @@ const revisionSelect = {
       },
     },
   },
+  pageBlocks: {
+    orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    select: { id: true, type: true, position: true, config: true },
+  },
 } satisfies Prisma.ExperienceRevisionSelect;
 type PublishedRevision = Prisma.ExperienceRevisionGetPayload<{
   select: typeof revisionSelect;
@@ -61,6 +65,7 @@ export class PublicBookingService {
       },
       publishedRevision: this.revision(revision),
       fields: revision.fields.map(this.field),
+      pageBlocks: revision.pageBlocks,
     };
   }
   async occurrences(b: string, e: string) {

@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { Prisma } from '@bizzres/database';
 import type {
   CreateExperienceDto,
   UpdateDraftDto,
@@ -33,7 +34,11 @@ const revisionSelect = {
   slotIntervalMinutes: true,
   bufferBeforeMinutes: true,
   bufferAfterMinutes: true,
-} as const;
+  pageBlocks: {
+    orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
+    select: { id: true, type: true, position: true, config: true },
+  },
+} satisfies Prisma.ExperienceRevisionSelect;
 
 @Injectable()
 export class ExperiencesService {
@@ -402,6 +407,7 @@ export class ExperiencesService {
               options: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
             },
           },
+          pageBlocks: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
         },
       });
       if (!source)
@@ -476,7 +482,22 @@ export class ExperiencesService {
           );
         fields.push({ ...cloned, options });
       }
-      return { ...this.revision(draft), fields };
+      const pageBlocks = [];
+      for (const block of source.pageBlocks)
+        pageBlocks.push(
+          await tx.pageBlock.create({
+            data: {
+              organizationId: experience.organizationId,
+              experienceId,
+              revisionId: draft.id,
+              type: block.type,
+              position: block.position,
+              config: block.config as Prisma.InputJsonValue,
+            },
+            select: { id: true, type: true, position: true, config: true },
+          }),
+        );
+      return { ...this.revision(draft), fields, pageBlocks };
     });
   }
   async setReservations(userId: string, experienceId: string, open: boolean) {

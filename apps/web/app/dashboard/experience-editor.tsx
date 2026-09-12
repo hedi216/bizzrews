@@ -10,6 +10,7 @@ import { useSession } from '../providers';
 import { FieldEditor } from './field-editor';
 import { BookingsManager } from './bookings-manager';
 import { AssignmentManager } from './assignment-manager';
+import { PageBlockEditor } from './page-block-editor';
 export function ExperienceEditor({
   experience,
   role,
@@ -211,6 +212,14 @@ export function ExperienceEditor({
           key={draft.id}
           experienceId={experience.id}
           initial={draft.fields}
+          role={role}
+        />
+      )}
+      {draft?.pageBlocks && (
+        <PageBlockEditor
+          key={`page-${draft.id}`}
+          experienceId={experience.id}
+          initial={draft.pageBlocks}
           role={role}
         />
       )}

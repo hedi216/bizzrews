@@ -51,6 +51,13 @@ export type PublicExperience = {
     bufferAfterMinutes: number;
   };
   fields: PublicField[];
+  pageBlocks: Array<{
+    id: string;
+    type:
+      'HERO' | 'TEXT' | 'GALLERY' | 'LOCATION' | 'ITINERARY' | 'FORM' | 'CTA';
+    position: number;
+    config: Record<string, unknown>;
+  }>;
 };
 export type PublicOccurrence = {
   id: string;

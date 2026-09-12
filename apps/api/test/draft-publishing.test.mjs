@@ -54,6 +54,9 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
       await db.$executeRawUnsafe(
         'ALTER TABLE public."ExperienceRevision" DISABLE TRIGGER bizzres_revision_immutability',
       );
+      await db.$executeRawUnsafe(
+        'ALTER TABLE public."PageBlock" DISABLE TRIGGER bizzres_page_block_immutability',
+      );
       try {
         await db.experience.updateMany({
           where: { organizationId },
@@ -61,6 +64,7 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
         });
         await db.fieldOption.deleteMany({ where: { organizationId } });
         await db.fieldDefinition.deleteMany({ where: { organizationId } });
+        await db.pageBlock.deleteMany({ where: { organizationId } });
         await db.experienceRevision.deleteMany({ where: { organizationId } });
         await db.experience.deleteMany({ where: { organizationId } });
         await db.business.deleteMany({ where: { organizationId } });
@@ -75,6 +79,9 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
         );
         await db.$executeRawUnsafe(
           'ALTER TABLE public."FieldOption" ENABLE TRIGGER bizzres_field_option_immutability',
+        );
+        await db.$executeRawUnsafe(
+          'ALTER TABLE public."PageBlock" ENABLE TRIGGER bizzres_page_block_immutability',
         );
       }
     }
@@ -127,6 +134,38 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
   assert.equal(made.status, 201);
   const eid = made.body.experience.id;
   const fieldPath = `/experiences/${eid}/draft/fields`;
+  const blockPath = `/experiences/${eid}/draft/page-blocks`;
+  assert.equal(
+    (
+      await request(blockPath, {
+        method: 'POST',
+        token: staff.body.accessToken,
+        body: { type: 'TEXT', position: 0, config: { body: 'No' } },
+      })
+    ).status,
+    403,
+  );
+  const block = await request(blockPath, {
+    method: 'POST',
+    token: owner.body.accessToken,
+    body: {
+      type: 'TEXT',
+      position: 0,
+      config: { heading: 'Welcome', body: 'A public introduction.' },
+    },
+  });
+  assert.equal(block.status, 201);
+  assert.equal(
+    (
+      await request(blockPath, {
+        method: 'POST',
+        token: owner.body.accessToken,
+        body: { type: 'TEXT', position: 1, config: { fields: [] } },
+      })
+    ).status,
+    400,
+  );
+  checks += 3;
   const text = await request(fieldPath, {
     method: 'POST',
     token: owner.body.accessToken,
@@ -393,6 +432,11 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
   assert.equal(published.body.experience.acceptingReservations, false);
   assert.equal(published.body.publishedRevision.priceAmount, '25.0000');
   assert.ok(published.body.publishedRevision.publishedAt);
+  const publicPage = await request(
+    `/public/businesses/${onboard.body.business.slug}/experiences/${made.body.experience.slug}`,
+  );
+  assert.equal(publicPage.status, 200);
+  assert.equal(publicPage.body.pageBlocks[0].config.heading, 'Welcome');
   checks += 7;
   assert.equal(
     (
@@ -414,6 +458,17 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
     409,
   );
   checks += 2;
+  assert.equal(
+    (
+      await request(`${blockPath}/${block.body.id}`, {
+        method: 'PATCH',
+        token: owner.body.accessToken,
+        body: { config: { body: 'Changed' } },
+      })
+    ).status,
+    409,
+  );
+  checks++;
   const concurrent = await Promise.all([
     request(`/experiences/${eid}/draft`, {
       method: 'POST',
@@ -429,6 +484,9 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
   assert.equal(clone.version, 2);
   assert.notEqual(clone.id, made.body.draft.id);
   assert.equal(clone.fields.length, 3);
+  assert.equal(clone.pageBlocks.length, 1);
+  assert.notEqual(clone.pageBlocks[0].id, block.body.id);
+  assert.equal(clone.pageBlocks[0].config.body, 'A public introduction.');
   const clonedSelect = clone.fields.find((f) => f.key === 'meal');
   assert.notEqual(clonedSelect.id, select.body.id);
   assert.equal(clonedSelect.options[0].key, 'vegan');
@@ -437,7 +495,7 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
     clone.fields.find((f) => f.key === 'special_notes').required,
     true,
   );
-  checks += 8;
+  checks += 11;
   const read = await request(`/experiences/${eid}`, {
     token: owner.body.accessToken,
   });

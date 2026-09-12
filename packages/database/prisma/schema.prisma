@@ -85,6 +85,16 @@ enum NotificationStatus {
   FAILED
 }
 
+enum PageBlockType {
+  HERO
+  TEXT
+  GALLERY
+  LOCATION
+  ITINERARY
+  FORM
+  CTA
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   email                String
@@ -203,6 +213,7 @@ model ExperienceRevision {
   publishedByExperiences Experience[]      @relation("PublishedRevision")
   reservations           Reservation[]
   fields                 FieldDefinition[]
+  pageBlocks             PageBlock[]
 
   @@unique([organizationId, experienceId, version])
   @@unique([organizationId, experienceId, id])
@@ -479,6 +490,23 @@ model FieldDefinition {
   @@unique([organizationId, experienceId, revisionId, key])
   @@unique([organizationId, experienceId, revisionId, id])
   @@index([organizationId, experienceId, revisionId, position, id])
+}
+
+model PageBlock {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  experienceId   String        @db.Uuid
+  revisionId     String        @db.Uuid
+  type           PageBlockType
+  position       Int
+  config         Json          @db.JsonB
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  revision ExperienceRevision @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, experienceId, revisionId, id])
+  @@index([organizationId, experienceId, revisionId, position])
 }
 
 model FieldOption {
