@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'BizzRes',
-  description: 'BizzRes application foundation.',
+  description: 'Simple, direct booking experiences powered by BizzRes.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

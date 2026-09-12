@@ -2,11 +2,13 @@
   "name": "@bizzres/web",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "next": "16.3.4",

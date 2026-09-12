@@ -47,7 +47,7 @@ SHADOW_DATABASE_URL uses the existing application's connection credentials but n
 
 Production database credentials must be completely separate from local development credentials. Production migration privileges should be planned separately from application runtime privileges.
 
-Next.js uses its own environment-file convention: when needed, create ignored `apps/web/.env.local` containing only web-specific settings such as `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1`. Never put DATABASE_URL in the web environment. Values prefixed with NEXT_PUBLIC_ are public and embedded at build time. The placeholder page does not call the API yet.
+Next.js uses its own environment-file convention: when needed, create ignored `apps/web/.env.local` containing only web-specific settings such as `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1`. Never put DATABASE_URL in the web environment. Values prefixed with NEXT_PUBLIC_ are public and embedded at build time.
 
 Account authentication uses email and password for BizzRes platform users. Configure `JWT_ACCESS_SECRET` only in the ignored root `.env`; it must contain at least 32 bytes of unpredictable material. `JWT_ACCESS_TTL_SECONDS` defaults to 900, `AUTH_REFRESH_TTL_DAYS` defaults to 30, and `CORS_ORIGIN` identifies the single trusted web origin (`http://localhost:3000` locally). Keep the placeholder secret empty in `.env.example`.
 
@@ -60,6 +60,8 @@ Active organization members can read Businesses and Experiences through `GET /ap
 Active members read occurrences through `GET /api/v1/experiences/:experienceId/occurrences` and `GET /api/v1/occurrences/:occurrenceId`. OWNER and MANAGER members create and update occurrences, cancel empty occurrences, and open or close reservations through the corresponding domain-action endpoints. Occurrence times are explicit instants and retain their IANA timezone.
 
 Direct public booking links use `GET /api/v1/public/businesses/:businessSlug/experiences/:experienceSlug`; future availability is exposed by its `/occurrences` child and guest reservation submission by its `/reservations` child. Reservation creation validates published custom questions, creates server-owned snapshots, and locks occurrence capacity transactionally. The published revision price is the reservation total in this first version and is not multiplied by participant count.
+
+The public web booking page is available at `/:businessSlug/:experienceSlug`. It renders explicit occurrences or generated appointment slots, all published custom field types, mandatory guest details, a review step, and the recorded reservation confirmation. Publishing and opening reservations remain separate business actions; the web page never claims that an email was sent.
 
 Active members list and read reservations through `GET /api/v1/experiences/:experienceId/reservations` and `GET /api/v1/reservations/:reservationId`. OWNER and MANAGER members cancel with `POST /api/v1/reservations/:reservationId/cancel`; cancelled reservations stop consuming occurrence capacity.
 
