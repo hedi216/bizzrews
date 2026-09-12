@@ -63,6 +63,8 @@ Direct public booking links use `GET /api/v1/public/businesses/:businessSlug/exp
 
 The public web booking page is available at `/:businessSlug/:experienceSlug`. It renders explicit occurrences or generated appointment slots, all published custom field types, mandatory guest details, a review step, and the recorded reservation confirmation. Publishing and opening reservations remain separate business actions; the web page never claims that an email was sent.
 
+Business users sign in at `/login` and manage active Organizations, Businesses, Experiences, draft questions, Resources, availability, Occurrences, and reservations at `/dashboard`. Access tokens remain in memory and reloads restore authentication through the rotating HttpOnly refresh cookie. OWNER and MANAGER controls mutate through authenticated APIs; STAFF access stays read-only and backend authorization remains authoritative.
+
 Active members list and read reservations through `GET /api/v1/experiences/:experienceId/reservations` and `GET /api/v1/reservations/:reservationId`. OWNER and MANAGER members cancel with `POST /api/v1/reservations/:reservationId/cancel`; cancelled reservations stop consuming occurrence capacity.
 
 BizzRes supports both explicit occurrences and generated appointment slots. A published Experience revision selects `EXPLICIT_OCCURRENCES` or `GENERATED_SLOTS`; generated scheduling fixes duration, slot interval, and buffers in the immutable revision. Business-owned Resources are assigned to Experiences and configured through full-replacement weekly availability plus date overrides.
