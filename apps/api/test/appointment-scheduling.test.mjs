@@ -57,6 +57,9 @@ test('resource scheduling, DST slots, and generated booking concurrency', async 
           await db.reservationEvent.deleteMany({
             where: { organizationId: orgId },
           });
+          await db.notification.deleteMany({
+            where: { organizationId: orgId },
+          });
           await db.reservation.deleteMany({ where: { organizationId: orgId } });
           await db.occurrence.deleteMany({ where: { organizationId: orgId } });
           await db.experience.updateMany({

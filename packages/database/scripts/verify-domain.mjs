@@ -29,6 +29,7 @@ const expectedTables = [
   'CustomerLoyaltyTransaction',
   'BusinessRewardAccount',
   'BusinessRewardTransaction',
+  'Notification',
 ].sort();
 let client;
 let transaction = false;

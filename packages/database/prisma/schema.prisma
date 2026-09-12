@@ -72,6 +72,19 @@ enum BusinessRewardTransactionType {
   SPEND
 }
 
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  BOOKING_CANCELLATION
+  BOOKING_REMINDER
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   email                String
@@ -99,6 +112,7 @@ model Organization {
   customerLoyaltyTransactions CustomerLoyaltyTransaction[]
   businessRewardAccounts      BusinessRewardAccount[]
   businessRewardTransactions  BusinessRewardTransaction[]
+  notifications               Notification[]
 }
 
 model OrganizationMember {
@@ -317,6 +331,7 @@ model Reservation {
   events              ReservationEvent[]
   answers             ReservationAnswer[]
   loyaltyTransactions CustomerLoyaltyTransaction[]
+  notifications       Notification[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, experienceId, revisionId, id])
@@ -396,6 +411,32 @@ model BusinessRewardTransaction {
   account      BusinessRewardAccount @relation(fields: [organizationId, businessId, accountId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([organizationId, businessId, accountId, createdAt])
+}
+
+model Notification {
+  id               String             @id @default(uuid()) @db.Uuid
+  organizationId   String             @db.Uuid
+  reservationId    String             @db.Uuid
+  type             NotificationType
+  status           NotificationStatus @default(PENDING)
+  recipientEmail   String
+  deduplicationKey String             @unique
+  payloadVersion   Int                @default(1)
+  payload          Json               @db.JsonB
+  scheduledAt      DateTime           @default(now()) @db.Timestamptz(3)
+  processingAt     DateTime?          @db.Timestamptz(3)
+  sentAt           DateTime?          @db.Timestamptz(3)
+  failedAt         DateTime?          @db.Timestamptz(3)
+  attempts         Int                @default(0)
+  lastError        String?
+  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reservation  Reservation  @relation(fields: [organizationId, reservationId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([status, scheduledAt])
+  @@index([organizationId, reservationId, createdAt])
 }
 
 model ReservationEvent {

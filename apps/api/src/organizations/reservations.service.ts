@@ -60,7 +60,15 @@ export class ReservationsService {
       await tx.$queryRaw`SELECT "id" FROM "Reservation" WHERE "id"=${id}::uuid FOR UPDATE`;
       const r = await tx.reservation.findUnique({
         where: { id },
-        select: { id: true, organizationId: true, status: true },
+        select: {
+          id: true,
+          organizationId: true,
+          status: true,
+          customerEmail: true,
+          startAt: true,
+          endAt: true,
+          timezone: true,
+        },
       });
       if (!r) throw new NotFoundException('Resource not found.');
       const m = await tx.organizationMember.findFirst({
@@ -90,6 +98,23 @@ export class ReservationsService {
           actorMemberId: m.id,
           payloadVersion: 1,
           payload: input.reason ? { reason: input.reason } : {},
+        },
+      });
+      await tx.notification.create({
+        data: {
+          organizationId: r.organizationId,
+          reservationId: id,
+          type: 'BOOKING_CANCELLATION',
+          recipientEmail: r.customerEmail,
+          deduplicationKey: `reservation:${id}:cancellation`,
+          payloadVersion: 1,
+          payload: {
+            reservationId: id,
+            startAt: r.startAt.toISOString(),
+            endAt: r.endAt.toISOString(),
+            timezone: r.timezone,
+            ...(input.reason ? { reason: input.reason } : {}),
+          },
         },
       });
       return this.map(updated);

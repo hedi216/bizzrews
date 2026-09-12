@@ -61,6 +61,7 @@ test('transactional guest booking and business management flow', async (t) => {
         try {
           await db.reservationAnswer.deleteMany({ where: { organizationId } });
           await db.reservationEvent.deleteMany({ where: { organizationId } });
+          await db.notification.deleteMany({ where: { organizationId } });
           await db.reservation.deleteMany({ where: { organizationId } });
           await db.occurrence.deleteMany({ where: { organizationId } });
           await db.experience.updateMany({
@@ -250,6 +251,17 @@ test('transactional guest booking and business management flow', async (t) => {
     1,
   );
   checks += 6;
+  assert.equal(
+    await db.notification.count({
+      where: {
+        reservationId: reservation.id,
+        type: 'BOOKING_CONFIRMATION',
+        status: 'PENDING',
+      },
+    }),
+    1,
+  );
+  checks++;
 
   assert.equal(
     (
@@ -360,6 +372,16 @@ test('transactional guest booking and business management flow', async (t) => {
   assert.equal(cancelled.status, 201);
   assert.equal(cancelled.body.status, 'CANCELLED');
   assert.equal(
+    await db.notification.count({
+      where: {
+        reservationId: reservation.id,
+        type: 'BOOKING_CANCELLATION',
+        status: 'PENDING',
+      },
+    }),
+    1,
+  );
+  assert.equal(
     await db.reservationEvent.count({
       where: { reservationId: reservation.id, type: 'CANCELLED' },
     }),
@@ -373,7 +395,7 @@ test('transactional guest booking and business management flow', async (t) => {
     ).body.remainingCapacity,
     1,
   );
-  checks += 8;
+  checks += 9;
   assert.equal(
     (
       await request(`/reservations/${reservation.id}/cancel`, {
@@ -394,5 +416,5 @@ test('transactional guest booking and business management flow', async (t) => {
     201,
   );
   checks += 2;
-  assert.equal(checks, 38);
+  assert.equal(checks, 40);
 });

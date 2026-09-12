@@ -290,6 +290,23 @@ export class PublicBookingService {
           payload: { channel: 'public_direct' },
         },
       });
+      await tx.notification.create({
+        data: {
+          organizationId: x.organizationId,
+          reservationId: r.id,
+          type: 'BOOKING_CONFIRMATION',
+          recipientEmail: input.customer.email,
+          deduplicationKey: `reservation:${r.id}:confirmation`,
+          payloadVersion: 1,
+          payload: {
+            reservationId: r.id,
+            experienceName: x.publishedRevision.name,
+            startAt: o.startAt.toISOString(),
+            endAt: o.endAt.toISOString(),
+            timezone: o.timezone,
+          },
+        },
+      });
       return { reservation: { ...r, totalAmount: r.totalAmount.toFixed(4) } };
     });
   }
