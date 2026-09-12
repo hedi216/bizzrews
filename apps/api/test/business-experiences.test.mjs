@@ -425,6 +425,8 @@ test('business and experience draft management authorization', async (t) => {
         cancellationTerms: ' ',
         priceAmount: '12.34',
         currency: ' tnd ',
+        paymentMode: 'DEPOSIT',
+        depositAmount: '3.5',
       },
     },
   );
@@ -434,6 +436,18 @@ test('business and experience draft management authorization', async (t) => {
   assert.equal(draft.body.cancellationTerms, null);
   assert.equal(draft.body.priceAmount, '12.3400');
   assert.equal(draft.body.currency, 'TND');
+  assert.equal(draft.body.paymentMode, 'DEPOSIT');
+  assert.equal(draft.body.depositAmount, '3.5000');
+  assert.equal(
+    (
+      await request(`/experiences/${created.body.experience.id}/draft`, {
+        method: 'PATCH',
+        token: owner.body.accessToken,
+        body: { depositAmount: '20' },
+      })
+    ).status,
+    400,
+  );
   assert.equal(
     (
       await request(`/experiences/${created.body.experience.id}/draft`, {
@@ -454,7 +468,7 @@ test('business and experience draft management authorization', async (t) => {
     ).status,
     400,
   );
-  checks += 8;
+  checks += 11;
 
   const newSlug = `new-${mark}`;
   assert.equal(

@@ -66,6 +66,12 @@ export default async function ExperiencePage({ params }: Props) {
             <h1>{r.name}</h1>
             {r.description && <p className="description">{r.description}</p>}
             <div className="price">{money(r.priceAmount, r.currency)}</div>
+            {r.paymentMode === 'DEPOSIT' && r.depositAmount && (
+              <p>
+                A deposit of {money(r.depositAmount, r.currency)} will be
+                required.
+              </p>
+            )}
             <p className="timezone">Times shown in {data.business.timezone}</p>
             {r.cancellationTerms && (
               <details>

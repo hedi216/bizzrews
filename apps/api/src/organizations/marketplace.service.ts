@@ -38,6 +38,8 @@ export class MarketplaceService {
                 description: true,
                 priceAmount: true,
                 currency: true,
+                paymentMode: true,
+                depositAmount: true,
               },
             },
           },
@@ -54,6 +56,8 @@ export class MarketplaceService {
             publishedRevision: {
               ...e.publishedRevision!,
               priceAmount: e.publishedRevision!.priceAmount.toFixed(4),
+              depositAmount:
+                e.publishedRevision!.depositAmount?.toFixed(4) ?? null,
             },
           })),
       })),

@@ -28,6 +28,8 @@ const revisionSelect = {
   cancellationTerms: true,
   priceAmount: true,
   currency: true,
+  paymentMode: true,
+  depositAmount: true,
   publishedAt: true,
   schedulingMode: true,
   durationMinutes: true,
@@ -98,6 +100,11 @@ export class ExperiencesService {
             cancellationTerms: input.cancellationTerms ?? null,
             priceAmount: input.priceAmount ?? '0',
             currency: input.currency ?? business.defaultCurrency,
+            ...this.payment({
+              paymentMode: input.paymentMode ?? 'NONE',
+              priceAmount: input.priceAmount ?? '0',
+              depositAmount: input.depositAmount ?? null,
+            }),
           },
           select: revisionSelect,
         });
@@ -248,9 +255,19 @@ export class ExperiencesService {
       bufferAfterMinutes:
         input.bufferAfterMinutes ?? drafts[0]!.bufferAfterMinutes,
     });
+    const payment = this.payment({
+      paymentMode: input.paymentMode ?? drafts[0]!.paymentMode,
+      priceAmount: input.priceAmount ?? drafts[0]!.priceAmount.toFixed(4),
+      depositAmount:
+        input.paymentMode && input.paymentMode !== 'DEPOSIT'
+          ? null
+          : (input.depositAmount ??
+            drafts[0]!.depositAmount?.toFixed(4) ??
+            null),
+    });
     const draft = await this.database.client.experienceRevision.update({
       where: { id: drafts[0]!.id },
-      data: { ...input, ...scheduling },
+      data: { ...input, ...scheduling, ...payment },
       select: revisionSelect,
     });
     return this.revision(draft);
@@ -428,6 +445,8 @@ export class ExperiencesService {
           cancellationTerms: source.cancellationTerms,
           priceAmount: source.priceAmount,
           currency: source.currency,
+          paymentMode: source.paymentMode,
+          depositAmount: source.depositAmount,
           schedulingMode: source.schedulingMode,
           durationMinutes: source.durationMinutes,
           slotIntervalMinutes: source.slotIntervalMinutes,
@@ -556,9 +575,47 @@ export class ExperiencesService {
     return value;
   }
   private revision<
-    T extends { priceAmount: { toFixed(digits: number): string } },
+    T extends {
+      priceAmount: { toFixed(digits: number): string };
+      depositAmount?: { toFixed(digits: number): string } | null;
+    },
   >(row: T) {
-    return { ...row, priceAmount: row.priceAmount.toFixed(4) };
+    return {
+      ...row,
+      priceAmount: row.priceAmount.toFixed(4),
+      ...(Object.hasOwn(row, 'depositAmount')
+        ? { depositAmount: row.depositAmount?.toFixed(4) ?? null }
+        : {}),
+    };
+  }
+  private payment(value: {
+    paymentMode: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+    priceAmount: string;
+    depositAmount: string | null;
+  }) {
+    const price = new Prisma.Decimal(value.priceAmount);
+    if (value.paymentMode !== 'NONE' && price.lte(0))
+      throw new BadRequestException(
+        'Paid payment modes require a price greater than zero.',
+      );
+    if (value.paymentMode !== 'DEPOSIT') {
+      if (value.depositAmount !== null)
+        throw new BadRequestException(
+          'Deposit amount is only valid for deposit payments.',
+        );
+      return { paymentMode: value.paymentMode, depositAmount: null };
+    }
+    if (!value.depositAmount)
+      throw new BadRequestException('Deposit payment requires an amount.');
+    const deposit = new Prisma.Decimal(value.depositAmount);
+    if (deposit.lte(0) || deposit.gt(price))
+      throw new BadRequestException(
+        'Deposit amount must be greater than zero and no more than the price.',
+      );
+    return {
+      paymentMode: value.paymentMode,
+      depositAmount: value.depositAmount,
+    };
   }
   private rethrowConflict(error: unknown, message: string): never {
     if (

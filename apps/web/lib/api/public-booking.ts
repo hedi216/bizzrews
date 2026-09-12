@@ -43,6 +43,8 @@ export type PublicExperience = {
     cancellationTerms: string | null;
     priceAmount: string;
     currency: string;
+    paymentMode: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+    depositAmount: string | null;
     publishedAt: string;
     schedulingMode: SchedulingMode;
     durationMinutes: number | null;
@@ -110,6 +112,8 @@ export type MarketplaceBusiness = {
       description: string | null;
       priceAmount: string;
       currency: string;
+      paymentMode: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+      depositAmount: string | null;
     };
   }>;
 };

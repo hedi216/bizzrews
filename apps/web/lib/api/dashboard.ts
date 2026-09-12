@@ -36,6 +36,8 @@ export type Revision = {
   cancellationTerms: string | null;
   priceAmount: string;
   currency: string;
+  paymentMode: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+  depositAmount: string | null;
   publishedAt: string | null;
   schedulingMode: 'EXPLICIT_OCCURRENCES' | 'GENERATED_SLOTS';
   durationMinutes?: number | null;
@@ -295,6 +297,8 @@ export const dashboardApi = {
         | 'cancellationTerms'
         | 'priceAmount'
         | 'currency'
+        | 'paymentMode'
+        | 'depositAmount'
         | 'schedulingMode'
       >
     > & {

@@ -52,6 +52,13 @@ export class CreateExperienceDto {
   @IsString()
   @Matches(/^[A-Z]{3}$/)
   currency?: string;
+  @IsOptional()
+  @IsIn(['NONE', 'OPTIONAL', 'REQUIRED', 'DEPOSIT'])
+  paymentMode?: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY)
+  depositAmount?: string;
 }
 
 export class UpdateDraftDto {
@@ -80,6 +87,13 @@ export class UpdateDraftDto {
   @IsString()
   @Matches(/^[A-Z]{3}$/)
   currency?: string;
+  @IsOptional()
+  @IsIn(['NONE', 'OPTIONAL', 'REQUIRED', 'DEPOSIT'])
+  paymentMode?: 'NONE' | 'OPTIONAL' | 'REQUIRED' | 'DEPOSIT';
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY)
+  depositAmount?: string;
   @IsOptional()
   @IsIn(['EXPLICIT_OCCURRENCES', 'GENERATED_SLOTS'])
   schedulingMode?: 'EXPLICIT_OCCURRENCES' | 'GENERATED_SLOTS';

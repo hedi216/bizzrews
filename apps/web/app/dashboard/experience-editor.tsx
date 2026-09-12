@@ -74,6 +74,11 @@ export function ExperienceEditor({
         cancellationTerms: draft.cancellationTerms,
         priceAmount: draft.priceAmount,
         currency: draft.currency,
+        paymentMode: draft.paymentMode,
+        depositAmount:
+          draft.paymentMode === 'DEPOSIT'
+            ? (draft.depositAmount ?? '')
+            : undefined,
         schedulingMode: draft.schedulingMode,
         durationMinutes:
           draft.schedulingMode === 'GENERATED_SLOTS'
@@ -119,6 +124,32 @@ export function ExperienceEditor({
             value={draft.currency}
             set={(currency) => setDraft({ ...draft, currency })}
           />
+          <label>
+            Payment mode
+            <select
+              value={draft.paymentMode}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  paymentMode: e.target.value as Revision['paymentMode'],
+                  depositAmount:
+                    e.target.value === 'DEPOSIT' ? draft.depositAmount : null,
+                })
+              }
+            >
+              <option value="NONE">No online payment</option>
+              <option value="OPTIONAL">Optional payment</option>
+              <option value="REQUIRED">Required payment</option>
+              <option value="DEPOSIT">Deposit</option>
+            </select>
+          </label>
+          {draft.paymentMode === 'DEPOSIT' && (
+            <Input
+              label="Deposit amount"
+              value={draft.depositAmount ?? ''}
+              set={(depositAmount) => setDraft({ ...draft, depositAmount })}
+            />
+          )}
           <label>
             Scheduling mode
             <select

@@ -95,6 +95,13 @@ enum PageBlockType {
   CTA
 }
 
+enum PaymentMode {
+  NONE
+  OPTIONAL
+  REQUIRED
+  DEPOSIT
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   email                String
@@ -199,6 +206,8 @@ model ExperienceRevision {
   cancellationTerms   String?
   priceAmount         Decimal        @default(0) @db.Decimal(19, 4)
   currency            String         @db.Char(3)
+  paymentMode         PaymentMode    @default(NONE)
+  depositAmount       Decimal?       @db.Decimal(19, 4)
   createdAt           DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime       @updatedAt @db.Timestamptz(3)
   publishedAt         DateTime?      @db.Timestamptz(3)
