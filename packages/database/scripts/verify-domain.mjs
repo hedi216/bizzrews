@@ -21,6 +21,10 @@ const expectedTables = [
   'ReservationAnswer',
   'PasswordCredential',
   'AuthSession',
+  'Resource',
+  'ExperienceResource',
+  'ResourceWeeklyAvailability',
+  'ResourceAvailabilityOverride',
 ].sort();
 let client;
 let transaction = false;
@@ -194,6 +198,7 @@ try {
     id: randomUUID(),
     organizationId: orgA,
     experienceId: experienceA,
+    businessId: businessA,
     startAt: now,
     endAt: new Date('2030-01-01T01:00:00.000Z'),
     timezone: 'Africa/Tunis',
@@ -201,14 +206,14 @@ try {
     updatedAt: now,
     ...extra,
   });
-  for (const [id, organizationId, experienceId] of [
-    [occurrenceA, orgA, experienceA],
-    [occurrenceB, orgA, experienceB],
-    [occurrenceOtherTenant, orgB, experienceOtherTenant],
+  for (const [id, organizationId, experienceId, businessId] of [
+    [occurrenceA, orgA, experienceA, businessA],
+    [occurrenceB, orgA, experienceB, businessA],
+    [occurrenceOtherTenant, orgB, experienceOtherTenant, businessB],
   ]) {
     await insert(
       'Occurrence',
-      occurrence({ id, organizationId, experienceId }),
+      occurrence({ id, organizationId, experienceId, businessId }),
     );
   }
   const reservation = (extra = {}) => ({

@@ -34,8 +34,16 @@ class CustomerDto {
   @Transform(trim) @IsString() @MaxLength(64) @Matches(/\S/) phone!: string;
   @Transform(trim) @IsEmail() @MaxLength(254) email!: string;
 }
+class GeneratedSlotDto {
+  @IsUUID('4') resourceId!: string;
+  @IsString() @Matches(INSTANT) startAt!: string;
+}
 class BookingDto {
-  @IsUUID('4') occurrenceId!: string;
+  @IsOptional() @IsUUID('4') occurrenceId?: string;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GeneratedSlotDto)
+  slot?: GeneratedSlotDto;
   @IsInt() @Min(1) participantCount!: number;
 }
 export class CreateReservationDto {

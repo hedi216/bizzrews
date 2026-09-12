@@ -47,6 +47,21 @@ enum FieldType {
   TIME
 }
 
+enum SchedulingMode {
+  EXPLICIT_OCCURRENCES
+  GENERATED_SLOTS
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 model User {
   id                 String               @id @default(uuid()) @db.Uuid
   email              String
@@ -103,6 +118,7 @@ model Business {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   experiences  Experience[]
+  resources    Resource[]
 
   @@unique([organizationId, id])
 }
@@ -118,28 +134,35 @@ model Experience {
   createdAt             DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
 
-  business          Business             @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
-  revisions         ExperienceRevision[] @relation("ExperienceRevisions")
-  publishedRevision ExperienceRevision?  @relation("PublishedRevision", fields: [organizationId, id, publishedRevisionId], references: [organizationId, experienceId, id], onDelete: NoAction, onUpdate: NoAction)
-  occurrences       Occurrence[]
+  business            Business             @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  revisions           ExperienceRevision[] @relation("ExperienceRevisions")
+  publishedRevision   ExperienceRevision?  @relation("PublishedRevision", fields: [organizationId, id, publishedRevisionId], references: [organizationId, experienceId, id], onDelete: NoAction, onUpdate: NoAction)
+  occurrences         Occurrence[]
+  resourceAssignments ExperienceResource[]
 
   @@unique([organizationId, id])
+  @@unique([organizationId, businessId, id])
   @@unique([businessId, slug])
 }
 
 model ExperienceRevision {
-  id                String    @id @default(uuid()) @db.Uuid
-  organizationId    String    @db.Uuid
-  experienceId      String    @db.Uuid
-  version           Int
-  name              String
-  description       String?
-  cancellationTerms String?
-  priceAmount       Decimal   @default(0) @db.Decimal(19, 4)
-  currency          String    @db.Char(3)
-  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
-  publishedAt       DateTime? @db.Timestamptz(3)
+  id                  String         @id @default(uuid()) @db.Uuid
+  organizationId      String         @db.Uuid
+  experienceId        String         @db.Uuid
+  version             Int
+  name                String
+  description         String?
+  cancellationTerms   String?
+  priceAmount         Decimal        @default(0) @db.Decimal(19, 4)
+  currency            String         @db.Char(3)
+  createdAt           DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime       @updatedAt @db.Timestamptz(3)
+  publishedAt         DateTime?      @db.Timestamptz(3)
+  schedulingMode      SchedulingMode @default(EXPLICIT_OCCURRENCES)
+  durationMinutes     Int?
+  slotIntervalMinutes Int?
+  bufferBeforeMinutes Int            @default(0)
+  bufferAfterMinutes  Int            @default(0)
 
   experience             Experience        @relation("ExperienceRevisions", fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
   // The composite publication FK limits this inverse to its owning Experience.
@@ -155,6 +178,8 @@ model Occurrence {
   id              String    @id @default(uuid()) @db.Uuid
   organizationId  String    @db.Uuid
   experienceId    String    @db.Uuid
+  businessId      String    @db.Uuid
+  resourceId      String?   @db.Uuid
   startAt         DateTime  @db.Timestamptz(3)
   endAt           DateTime  @db.Timestamptz(3)
   timezone        String
@@ -164,11 +189,82 @@ model Occurrence {
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
 
-  experience   Experience    @relation(fields: [organizationId, experienceId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  experience   Experience    @relation(fields: [organizationId, businessId, experienceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  resource     Resource?     @relation(fields: [organizationId, businessId, resourceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
   reservations Reservation[]
 
   @@unique([organizationId, experienceId, id])
-  @@unique([organizationId, experienceId, startAt, endAt])
+  @@index([organizationId, experienceId, startAt])
+}
+
+model Resource {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  name           String   @db.VarChar(160)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  business              Business                       @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  experienceAssignments ExperienceResource[]
+  weeklyAvailability    ResourceWeeklyAvailability[]
+  availabilityOverrides ResourceAvailabilityOverride[]
+  occurrences           Occurrence[]
+
+  @@unique([organizationId, businessId, id])
+  @@unique([organizationId, id])
+  @@index([organizationId, businessId, active, createdAt, id])
+}
+
+model ExperienceResource {
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  experienceId   String   @db.Uuid
+  resourceId     String   @db.Uuid
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  experience Experience @relation(fields: [organizationId, businessId, experienceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  resource   Resource   @relation(fields: [organizationId, businessId, resourceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@id([organizationId, experienceId, resourceId])
+  @@index([organizationId, businessId, resourceId])
+}
+
+model ResourceWeeklyAvailability {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  businessId     String    @db.Uuid
+  resourceId     String    @db.Uuid
+  dayOfWeek      DayOfWeek
+  startLocalTime DateTime  @db.Time(0)
+  endLocalTime   DateTime  @db.Time(0)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  resource Resource @relation(fields: [organizationId, businessId, resourceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, resourceId, dayOfWeek, startLocalTime, endLocalTime])
+  @@index([organizationId, resourceId, dayOfWeek, startLocalTime])
+}
+
+model ResourceAvailabilityOverride {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  businessId     String    @db.Uuid
+  resourceId     String    @db.Uuid
+  date           DateTime  @db.Date
+  available      Boolean
+  startLocalTime DateTime? @db.Time(0)
+  endLocalTime   DateTime? @db.Time(0)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  resource Resource @relation(fields: [organizationId, businessId, resourceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, resourceId, date])
+  @@index([organizationId, resourceId, date])
 }
 
 model Reservation {

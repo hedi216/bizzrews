@@ -28,6 +28,11 @@ const revisionSelect = {
   priceAmount: true,
   currency: true,
   publishedAt: true,
+  schedulingMode: true,
+  durationMinutes: true,
+  slotIntervalMinutes: true,
+  bufferBeforeMinutes: true,
+  bufferAfterMinutes: true,
 } as const;
 
 @Injectable()
@@ -218,7 +223,7 @@ export class ExperiencesService {
     const drafts = await this.database.client.experienceRevision.findMany({
       where: { experienceId, publishedAt: null },
       take: 2,
-      select: { id: true },
+      select: revisionSelect,
     });
     if (drafts.length > 1)
       throw new InternalServerErrorException(
@@ -228,9 +233,19 @@ export class ExperiencesService {
       throw new ConflictException(
         'No editable draft exists for this experience.',
       );
+    const scheduling = this.scheduling({
+      schedulingMode: input.schedulingMode ?? drafts[0]!.schedulingMode,
+      durationMinutes: input.durationMinutes ?? drafts[0]!.durationMinutes,
+      slotIntervalMinutes:
+        input.slotIntervalMinutes ?? drafts[0]!.slotIntervalMinutes,
+      bufferBeforeMinutes:
+        input.bufferBeforeMinutes ?? drafts[0]!.bufferBeforeMinutes,
+      bufferAfterMinutes:
+        input.bufferAfterMinutes ?? drafts[0]!.bufferAfterMinutes,
+    });
     const draft = await this.database.client.experienceRevision.update({
       where: { id: drafts[0]!.id },
-      data: input,
+      data: { ...input, ...scheduling },
       select: revisionSelect,
     });
     return this.revision(draft);
@@ -282,6 +297,16 @@ export class ExperiencesService {
       if (!draft)
         throw new ConflictException(
           'No editable draft exists for this experience.',
+        );
+      this.scheduling(draft);
+      if (
+        draft.schedulingMode === 'GENERATED_SLOTS' &&
+        !(await tx.experienceResource.count({
+          where: { experienceId, active: true, resource: { active: true } },
+        }))
+      )
+        throw new ConflictException(
+          'Generated scheduling requires an active assigned resource.',
         );
       await tx.$queryRaw`SELECT "id" FROM "ExperienceRevision" WHERE "id" = ${draft.id}::uuid FOR UPDATE`;
       for (const field of draft.fields) {
@@ -397,6 +422,11 @@ export class ExperiencesService {
           cancellationTerms: source.cancellationTerms,
           priceAmount: source.priceAmount,
           currency: source.currency,
+          schedulingMode: source.schedulingMode,
+          durationMinutes: source.durationMinutes,
+          slotIntervalMinutes: source.slotIntervalMinutes,
+          bufferBeforeMinutes: source.bufferBeforeMinutes,
+          bufferAfterMinutes: source.bufferAfterMinutes,
         },
         select: revisionSelect,
       });
@@ -482,6 +512,27 @@ export class ExperiencesService {
         'Experience draft integrity error.',
       );
     return drafts[0] ? this.revision(drafts[0]) : null;
+  }
+  private scheduling(value: {
+    schedulingMode: 'EXPLICIT_OCCURRENCES' | 'GENERATED_SLOTS';
+    durationMinutes: number | null;
+    slotIntervalMinutes: number | null;
+    bufferBeforeMinutes: number;
+    bufferAfterMinutes: number;
+  }) {
+    if (value.schedulingMode === 'EXPLICIT_OCCURRENCES')
+      return {
+        schedulingMode: value.schedulingMode,
+        durationMinutes: null,
+        slotIntervalMinutes: null,
+        bufferBeforeMinutes: value.bufferBeforeMinutes,
+        bufferAfterMinutes: value.bufferAfterMinutes,
+      };
+    if (!value.durationMinutes || !value.slotIntervalMinutes)
+      throw new BadRequestException(
+        'Generated scheduling requires duration and slot interval.',
+      );
+    return value;
   }
   private revision<
     T extends { priceAmount: { toFixed(digits: number): string } },

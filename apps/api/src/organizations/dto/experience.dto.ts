@@ -6,6 +6,10 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsIn,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { BUSINESS_SLUG_PATTERN } from '../business-slug';
 import {
@@ -76,6 +80,13 @@ export class UpdateDraftDto {
   @IsString()
   @Matches(/^[A-Z]{3}$/)
   currency?: string;
+  @IsOptional()
+  @IsIn(['EXPLICIT_OCCURRENCES', 'GENERATED_SLOTS'])
+  schedulingMode?: 'EXPLICIT_OCCURRENCES' | 'GENERATED_SLOTS';
+  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMinutes?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1440) slotIntervalMinutes?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1440) bufferBeforeMinutes?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1440) bufferAfterMinutes?: number;
 }
 
 export class UpdateExperienceDto {

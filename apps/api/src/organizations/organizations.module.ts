@@ -16,6 +16,9 @@ import { ReservationsController } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
 import { OccurrencesController } from './occurrences.controller';
 import { OccurrencesService } from './occurrences.service';
+import { ResourcesController } from './resources.controller';
+import { ResourcesService } from './resources.service';
+import { SchedulingService } from './scheduling.service';
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -27,6 +30,7 @@ import { OccurrencesService } from './occurrences.service';
     PublicBookingController,
     ReservationsController,
     OccurrencesController,
+    ResourcesController,
   ],
   providers: [
     OrganizationsService,
@@ -37,6 +41,8 @@ import { OccurrencesService } from './occurrences.service';
     PublicBookingService,
     ReservationsService,
     OccurrencesService,
+    ResourcesService,
+    SchedulingService,
   ],
 })
 export class OrganizationsModule {}

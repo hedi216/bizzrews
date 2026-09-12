@@ -8,6 +8,7 @@ import { DatabaseService } from '../database/database.service';
 import { Prisma } from '@bizzres/database';
 import type { CreateReservationDto } from './dto/booking.dto';
 import { compareDecimal } from './field-validation';
+import { SchedulingService } from './scheduling.service';
 const revisionSelect = {
   version: true,
   name: true,
@@ -16,6 +17,11 @@ const revisionSelect = {
   priceAmount: true,
   currency: true,
   publishedAt: true,
+  schedulingMode: true,
+  durationMinutes: true,
+  slotIntervalMinutes: true,
+  bufferBeforeMinutes: true,
+  bufferAfterMinutes: true,
   fields: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
     include: {
@@ -38,7 +44,10 @@ type ValidationRules = {
 };
 @Injectable()
 export class PublicBookingService {
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private scheduling: SchedulingService,
+  ) {}
   async experience(b: string, e: string) {
     const x = await this.resolve(b, e);
     const revision = x.publishedRevision;
@@ -102,7 +111,7 @@ export class PublicBookingService {
           business: { archivedAt: null },
         },
         include: {
-          business: { select: { name: true, slug: true } },
+          business: { select: { name: true, slug: true, timezone: true } },
           publishedRevision: {
             include: {
               fields: {
@@ -120,14 +129,71 @@ export class PublicBookingService {
         !x.publishedRevision?.publishedAt
       )
         throw new ConflictException('Reservations are not open.');
-      await tx.$queryRaw`SELECT "id" FROM "Occurrence" WHERE "id"=${input.booking.occurrenceId}::uuid FOR UPDATE`;
-      const o = await tx.occurrence.findFirst({
-        where: {
-          id: input.booking.occurrenceId,
-          organizationId: x.organizationId,
-          experienceId: x.id,
-        },
-      });
+      const explicit = input.booking.occurrenceId;
+      const generated = input.booking.slot;
+      if ((explicit ? 1 : 0) + (generated ? 1 : 0) !== 1)
+        throw new BadRequestException(
+          'Choose an occurrence or generated slot.',
+        );
+      let o;
+      if (explicit) {
+        if (x.publishedRevision.schedulingMode !== 'EXPLICIT_OCCURRENCES')
+          throw new BadRequestException(
+            'This Experience uses generated slots.',
+          );
+        await tx.$queryRaw`SELECT "id" FROM "Occurrence" WHERE "id"=${explicit}::uuid FOR UPDATE`;
+        o = await tx.occurrence.findFirst({
+          where: {
+            id: explicit,
+            organizationId: x.organizationId,
+            experienceId: x.id,
+          },
+        });
+      } else {
+        if (input.booking.participantCount !== 1)
+          throw new BadRequestException(
+            'Generated slots require one participant.',
+          );
+        const slot = generated!;
+        // Serialize all generated bookings for one Resource. This also protects
+        // concurrent requests for different starts whose buffered occupancy overlaps.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${slot.resourceId}, 0))`;
+        await tx.$queryRaw`SELECT "id" FROM "Resource" WHERE "id"=${slot.resourceId}::uuid FOR UPDATE`;
+        const valid = await this.scheduling.requestedSlot(
+          tx,
+          x.id,
+          slot.resourceId,
+          slot.startAt,
+        );
+        const startAt = new Date(valid.startAt);
+        const endAt = new Date(valid.endAt);
+        const existing = await tx.occurrence.findFirst({
+          where: {
+            organizationId: x.organizationId,
+            resourceId: slot.resourceId,
+            startAt,
+            endAt,
+          },
+        });
+        if (existing) {
+          await tx.$queryRaw`SELECT "id" FROM "Occurrence" WHERE "id"=${existing.id}::uuid FOR UPDATE`;
+          if (existing.cancelledAt)
+            throw new ConflictException('Occurrence is not bookable.');
+          o = existing;
+        } else
+          o = await tx.occurrence.create({
+            data: {
+              organizationId: x.organizationId,
+              businessId: x.businessId,
+              experienceId: x.id,
+              resourceId: slot.resourceId,
+              startAt,
+              endAt,
+              timezone: valid.timezone,
+              capacity: 1,
+            },
+          });
+      }
       const now = new Date();
       if (
         !o ||
@@ -330,6 +396,11 @@ export class PublicBookingService {
       priceAmount: r.priceAmount.toFixed(4),
       currency: r.currency,
       publishedAt: r.publishedAt,
+      schedulingMode: r.schedulingMode,
+      durationMinutes: r.durationMinutes,
+      slotIntervalMinutes: r.slotIntervalMinutes,
+      bufferBeforeMinutes: r.bufferBeforeMinutes,
+      bufferAfterMinutes: r.bufferAfterMinutes,
     };
   }
   private field(f: PublishedField) {

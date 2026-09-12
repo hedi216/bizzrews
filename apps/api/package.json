@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "npm run build && node --env-file-if-exists=../../.env --test test/*.test.mjs",
+    "test": "npm run build && node --env-file-if-exists=../../.env --test --test-concurrency=1 test/*.test.mjs",
     "prebuild": "npm run build -w @bizzres/database",
     "pretypecheck": "npm run build -w @bizzres/database",
     "dev": "concurrently --kill-others -n compile,server \"tsc --watch --preserveWatchOutput\" \"node --watch --env-file-if-exists=../../.env dist/main.js\"",
@@ -23,10 +23,12 @@
     "class-validator": "0.15.1",
     "cookie-parser": "1.4.7",
     "helmet": "^8.1.0",
+    "luxon": "3.7.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
-    "@types/cookie-parser": "1.4.10"
+    "@types/cookie-parser": "1.4.10",
+    "@types/luxon": "3.7.5"
   }
 }

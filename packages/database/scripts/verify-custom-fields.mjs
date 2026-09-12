@@ -19,6 +19,10 @@ const expectedTables = [
   'User',
   'PasswordCredential',
   'AuthSession',
+  'Resource',
+  'ExperienceResource',
+  'ResourceWeeklyAvailability',
+  'ResourceAvailabilityOverride',
 ].sort();
 let client;
 let transaction = false;
@@ -176,6 +180,7 @@ try {
     id: occurrenceA,
     organizationId: orgA,
     experienceId: experienceA,
+    businessId: businessA,
     startAt: now,
     endAt: new Date('2031-01-01T01:00:00Z'),
     timezone: 'Europe/Paris',

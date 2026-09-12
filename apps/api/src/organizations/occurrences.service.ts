@@ -15,6 +15,7 @@ import type {
 const select = {
   id: true,
   experienceId: true,
+  resourceId: true,
   startAt: true,
   endAt: true,
   timezone: true,
@@ -42,7 +43,12 @@ export class OccurrencesService {
     const data = this.values(i, b.timezone);
     return this.map(
       await this.db.client.occurrence.create({
-        data: { organizationId: x.organizationId, experienceId: e, ...data },
+        data: {
+          organizationId: x.organizationId,
+          businessId: x.businessId,
+          experienceId: e,
+          ...data,
+        },
         select,
       }),
     );

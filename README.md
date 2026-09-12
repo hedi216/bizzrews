@@ -63,6 +63,12 @@ Direct public booking links use `GET /api/v1/public/businesses/:businessSlug/exp
 
 Active members list and read reservations through `GET /api/v1/experiences/:experienceId/reservations` and `GET /api/v1/reservations/:reservationId`. OWNER and MANAGER members cancel with `POST /api/v1/reservations/:reservationId/cancel`; cancelled reservations stop consuming occurrence capacity.
 
+BizzRes supports both explicit occurrences and generated appointment slots. A published Experience revision selects `EXPLICIT_OCCURRENCES` or `GENERATED_SLOTS`; generated scheduling fixes duration, slot interval, and buffers in the immutable revision. Business-owned Resources are assigned to Experiences and configured through full-replacement weekly availability plus date overrides.
+
+Authenticated scheduling endpoints are available under `/api/v1/businesses/:businessId/resources`, `/api/v1/experiences/:experienceId/resources`, and `/api/v1/resources/:resourceId`. Direct-link clients request generated availability from `GET /api/v1/public/businesses/:businessSlug/experiences/:experienceSlug/slots?date=YYYY-MM-DD`, optionally filtering by `resourceId`.
+
+Generated reservations submit `booking.slot.resourceId` and an absolute `booking.slot.startAt`; explicit reservations continue to submit `booking.occurrenceId`. Generated slots are recalculated inside the booking transaction, serialized per Resource with a PostgreSQL advisory transaction lock, checked against historical revision buffers, and materialized as capacity-one Occurrences only when booked.
+
 OWNER and MANAGER members configure draft questions through `POST`, `PATCH`, and `DELETE /api/v1/experiences/:experienceId/draft/fields`, with option mutations under `.../fields/:fieldId/options`. `POST /api/v1/experiences/:experienceId/publish` atomically freezes the current revision and makes it authoritative without enabling reservations. `POST /api/v1/experiences/:experienceId/draft` then clones the published revision, fields, and options into the next editable version. The lifecycle is draft → publish → immutable revision → next draft.
 
 ```sh
