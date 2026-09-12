@@ -437,6 +437,39 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
   );
   assert.equal(publicPage.status, 200);
   assert.equal(publicPage.body.pageBlocks[0].config.heading, 'Welcome');
+  assert.equal(
+    (await request(`/marketplace?query=${encodeURIComponent('Publisher')}`))
+      .body.businesses.length,
+    0,
+  );
+  assert.equal(
+    (
+      await request(`/businesses/${onboard.body.business.id}/marketplace`, {
+        method: 'PATCH',
+        token: staff.body.accessToken,
+        body: { marketplaceVisibility: 'LISTED' },
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await request(`/businesses/${onboard.body.business.id}/marketplace`, {
+        method: 'PATCH',
+        token: owner.body.accessToken,
+        body: { marketplaceVisibility: 'LISTED' },
+      })
+    ).status,
+    200,
+  );
+  const marketplace = await request('/marketplace?query=publisher');
+  assert.equal(marketplace.status, 200);
+  assert.equal(marketplace.body.businesses[0].slug, onboard.body.business.slug);
+  assert.equal(
+    marketplace.body.businesses[0].experiences[0].publishedRevision.priceAmount,
+    '25.0000',
+  );
+  checks += 6;
   checks += 7;
   assert.equal(
     (

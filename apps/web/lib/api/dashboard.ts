@@ -259,6 +259,15 @@ export const dashboardApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  setMarketplaceVisibility: (
+    token: string,
+    businessId: string,
+    marketplaceVisibility: 'UNLISTED' | 'LISTED',
+  ) =>
+    request<Business>(`/businesses/${businessId}/marketplace`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ marketplaceVisibility }),
+    }),
   createExperience: (
     token: string,
     businessId: string,

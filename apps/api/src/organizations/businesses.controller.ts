@@ -12,7 +12,11 @@ import { AccessTokenGuard } from '../auth/access-token.guard';
 import type { AccessTokenClaims } from '../auth/auth.types';
 import { CurrentAuth } from '../auth/current-auth.decorator';
 import { BusinessesService } from './businesses.service';
-import { BusinessInputDto, UpdateBusinessDto } from './dto/business.dto';
+import {
+  BusinessInputDto,
+  UpdateBusinessDto,
+  UpdateMarketplaceVisibilityDto,
+} from './dto/business.dto';
 
 @Controller({ version: '1' })
 @UseGuards(AccessTokenGuard)
@@ -56,5 +60,17 @@ export class BusinessesController {
     @Param('businessId', ParseUUIDPipe) businessId: string,
   ) {
     return this.businesses.rewards(auth.sub, businessId);
+  }
+  @Patch('businesses/:businessId/marketplace')
+  marketplace(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() input: UpdateMarketplaceVisibilityDto,
+  ) {
+    return this.businesses.marketplace(
+      auth.sub,
+      businessId,
+      input.marketplaceVisibility,
+    );
   }
 }

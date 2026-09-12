@@ -71,6 +71,8 @@ Reservation confirmation and cancellation create provider-neutral email outbox r
 
 Experience drafts support ordered public presentation blocks through `POST`, `PATCH`, and `DELETE /api/v1/experiences/:experienceId/draft/page-blocks`. Blocks are cloned with new IDs into each next draft and become immutable with their published revision. Page JSON controls presentation only; custom fields, scheduling, capacity, and price remain authoritative relational data.
 
+The public marketplace at `/marketplace` and `GET /api/v1/marketplace` returns only non-archived Businesses explicitly marked `LISTED` that have published Experiences. OWNER and MANAGER members opt in or out through `PATCH /api/v1/businesses/:businessId/marketplace`; `UNLISTED` public links continue to work directly without appearing in discovery.
+
 The public web booking page is available at `/:businessSlug/:experienceSlug`. It renders explicit occurrences or generated appointment slots, all published custom field types, mandatory guest details, a review step, and the recorded reservation confirmation. Publishing and opening reservations remain separate business actions; the web page never claims that an email was sent.
 
 Business users sign in at `/login` and manage active Organizations, Businesses, Experiences, draft questions, Resources, availability, Occurrences, and reservations at `/dashboard`. Access tokens remain in memory and reloads restore authentication through the rotating HttpOnly refresh cookie. OWNER and MANAGER controls mutate through authenticated APIs; STAFF access stays read-only and backend authorization remains authoritative.

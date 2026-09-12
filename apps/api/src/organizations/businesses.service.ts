@@ -106,6 +106,18 @@ export class BusinessesService {
       account ?? { id: null, balance: 0, updatedAt: null, transactions: [] }
     );
   }
+  async marketplace(
+    userId: string,
+    businessId: string,
+    marketplaceVisibility: 'UNLISTED' | 'LISTED',
+  ) {
+    await this.access.requireBusiness(userId, businessId, true);
+    return this.database.client.business.update({
+      where: { id: businessId },
+      data: { marketplaceVisibility },
+      select: businessSelect,
+    });
+  }
 
   private validateTimezone(timezone: string): void {
     try {

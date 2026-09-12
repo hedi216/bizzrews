@@ -97,6 +97,22 @@ export type ReservationResult = {
     currency: string;
   };
 };
+export type MarketplaceBusiness = {
+  name: string;
+  slug: string;
+  description: string | null;
+  timezone: string;
+  experiences: Array<{
+    slug: string;
+    acceptingReservations: boolean;
+    publishedRevision: {
+      name: string;
+      description: string | null;
+      priceAmount: string;
+      currency: string;
+    };
+  }>;
+};
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1'
@@ -135,6 +151,10 @@ const base = (businessSlug: string, experienceSlug: string) =>
   `/public/businesses/${encodeURIComponent(businessSlug)}/experiences/${encodeURIComponent(experienceSlug)}`;
 
 export const publicBookingApi = {
+  marketplace: (query = '') =>
+    request<{ businesses: MarketplaceBusiness[] }>(
+      `/marketplace${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+    ),
   experience: (businessSlug: string, experienceSlug: string) =>
     request<PublicExperience>(base(businessSlug, experienceSlug)),
   occurrences: (businessSlug: string, experienceSlug: string) =>

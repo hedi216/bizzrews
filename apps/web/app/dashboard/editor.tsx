@@ -94,6 +94,48 @@ export function BusinessEditor({
           </button>
         </form>
       )}
+      <div className="editor-actions">
+        <span>
+          {business.marketplaceVisibility === 'LISTED'
+            ? 'Visible in marketplace'
+            : 'Direct link only'}
+        </span>
+        <button
+          className="secondary-button"
+          disabled={pending}
+          onClick={() =>
+            void (async () => {
+              setPending(true);
+              setError('');
+              try {
+                const saved = await session.authorized((t) =>
+                  dashboardApi.setMarketplaceVisibility(
+                    t,
+                    business.id,
+                    business.marketplaceVisibility === 'LISTED'
+                      ? 'UNLISTED'
+                      : 'LISTED',
+                  ),
+                );
+                onSaved(saved);
+                setForm(saved);
+              } catch (x) {
+                setError(
+                  x instanceof Error
+                    ? x.message
+                    : 'Could not update visibility.',
+                );
+              } finally {
+                setPending(false);
+              }
+            })()
+          }
+        >
+          {business.marketplaceVisibility === 'LISTED'
+            ? 'Remove from marketplace'
+            : 'List in marketplace'}
+        </button>
+      </div>
     </section>
   );
 }

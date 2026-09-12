@@ -7,6 +7,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsIn,
 } from 'class-validator';
 import {
   BUSINESS_SLUG_PATTERN,
@@ -56,6 +57,11 @@ export class BusinessInputDto {
   @IsString()
   @Matches(/^[A-Z]{3}$/)
   defaultCurrency!: string;
+}
+
+export class UpdateMarketplaceVisibilityDto {
+  @IsIn(['UNLISTED', 'LISTED'])
+  marketplaceVisibility!: 'UNLISTED' | 'LISTED';
 }
 
 export class UpdateBusinessDto {
