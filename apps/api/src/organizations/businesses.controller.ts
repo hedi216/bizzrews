@@ -49,4 +49,12 @@ export class BusinessesController {
   ) {
     return this.businesses.update(auth.sub, businessId, input);
   }
+
+  @Get('businesses/:businessId/rewards')
+  rewards(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+  ) {
+    return this.businesses.rewards(auth.sub, businessId);
+  }
 }

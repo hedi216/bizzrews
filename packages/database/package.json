@@ -13,7 +13,7 @@
   "scripts": {
     "generate": "prisma generate",
     "check": "npm run build && node --env-file-if-exists=../../.env scripts/check-connection.mjs",
-    "test:integrity": "node --env-file-if-exists=../../.env scripts/verify-domain.mjs && node --env-file-if-exists=../../.env scripts/verify-custom-fields.mjs && node --env-file-if-exists=../../.env scripts/verify-auth-storage.mjs && node --env-file-if-exists=../../.env scripts/verify-customer-loyalty.mjs",
+    "test:integrity": "node --env-file-if-exists=../../.env scripts/verify-domain.mjs && node --env-file-if-exists=../../.env scripts/verify-custom-fields.mjs && node --env-file-if-exists=../../.env scripts/verify-auth-storage.mjs && node --env-file-if-exists=../../.env scripts/verify-customer-loyalty.mjs && node --env-file-if-exists=../../.env scripts/verify-business-rewards.mjs",
     "build": "npm run generate && tsc",
     "typecheck": "tsc --noEmit && tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext prisma.config.ts",
     "migrate": "node --env-file-if-exists=../../.env scripts/require-migration-env.mjs && prisma migrate dev",

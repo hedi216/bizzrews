@@ -80,6 +80,33 @@ export class BusinessesService {
     }
   }
 
+  async rewards(userId: string, businessId: string) {
+    await this.access.requireBusiness(userId, businessId, true);
+    const account = await this.database.client.businessRewardAccount.findFirst({
+      where: { businessId },
+      select: {
+        id: true,
+        balance: true,
+        updatedAt: true,
+        transactions: {
+          take: 100,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            type: true,
+            pointsDelta: true,
+            balanceAfter: true,
+            description: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    return (
+      account ?? { id: null, balance: 0, updatedAt: null, transactions: [] }
+    );
+  }
+
   private validateTimezone(timezone: string): void {
     try {
       new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();

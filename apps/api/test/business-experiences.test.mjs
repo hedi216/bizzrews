@@ -196,6 +196,38 @@ test('business and experience draft management authorization', async (t) => {
   assert.equal(second.body.marketplaceVisibility, 'UNLISTED');
   assert.equal(second.body.description, 'music');
   checks += 5;
+  const ownerRewards = await request(
+    `/businesses/${tenant.business.id}/rewards`,
+    { token: owner.body.accessToken },
+  );
+  assert.equal(ownerRewards.status, 200);
+  assert.equal(ownerRewards.body.balance, 0);
+  assert.deepEqual(ownerRewards.body.transactions, []);
+  assert.equal(
+    (
+      await request(`/businesses/${tenant.business.id}/rewards`, {
+        token: manager.body.accessToken,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await request(`/businesses/${tenant.business.id}/rewards`, {
+        token: staff.body.accessToken,
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await request(`/businesses/${tenant.business.id}/rewards`, {
+        token: other.body.accessToken,
+      })
+    ).status,
+    404,
+  );
+  checks += 6;
   assert.equal(
     (
       await request(`/organizations/${tenant.organization.id}/businesses`, {

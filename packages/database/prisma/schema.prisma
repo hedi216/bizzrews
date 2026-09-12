@@ -67,6 +67,11 @@ enum CustomerLoyaltyTransactionType {
   SPEND
 }
 
+enum BusinessRewardTransactionType {
+  EARN
+  SPEND
+}
+
 model User {
   id                   String                   @id @default(uuid()) @db.Uuid
   email                String
@@ -92,6 +97,8 @@ model Organization {
   businesses                  Business[]
   customerLoyaltyAccounts     CustomerLoyaltyAccount[]
   customerLoyaltyTransactions CustomerLoyaltyTransaction[]
+  businessRewardAccounts      BusinessRewardAccount[]
+  businessRewardTransactions  BusinessRewardTransaction[]
 }
 
 model OrganizationMember {
@@ -130,6 +137,8 @@ model Business {
   resources                   Resource[]
   customerLoyaltyAccounts     CustomerLoyaltyAccount[]
   customerLoyaltyTransactions CustomerLoyaltyTransaction[]
+  rewardAccount               BusinessRewardAccount?
+  rewardTransactions          BusinessRewardTransaction[]
 
   @@unique([organizationId, id])
 }
@@ -351,6 +360,40 @@ model CustomerLoyaltyTransaction {
   business     Business               @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
   account      CustomerLoyaltyAccount @relation(fields: [organizationId, businessId, accountId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
   reservation  Reservation?           @relation(fields: [organizationId, reservationId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, businessId, accountId, createdAt])
+}
+
+model BusinessRewardAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  balance        Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  business     Business                    @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  transactions BusinessRewardTransaction[]
+
+  @@unique([organizationId, businessId])
+  @@unique([organizationId, businessId, id])
+}
+
+model BusinessRewardTransaction {
+  id             String                        @id @default(uuid()) @db.Uuid
+  organizationId String                        @db.Uuid
+  businessId     String                        @db.Uuid
+  accountId      String                        @db.Uuid
+  type           BusinessRewardTransactionType
+  pointsDelta    Int
+  balanceAfter   Int                           @default(0)
+  description    String?
+  createdAt      DateTime                      @default(now()) @db.Timestamptz(3)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  business     Business              @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  account      BusinessRewardAccount @relation(fields: [organizationId, businessId, accountId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([organizationId, businessId, accountId, createdAt])
 }

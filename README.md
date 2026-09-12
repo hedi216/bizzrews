@@ -65,6 +65,8 @@ An authenticated customer may use the same public reservation endpoint with an a
 
 Customer loyalty uses one account per Business and User with an append-only points ledger. `GET /api/v1/customers/me/loyalty` exposes the authenticated customer's balances and history. There is intentionally no public credit endpoint; earning and spending policies will call the protected ledger from trusted lifecycle services.
 
+Business rewards use a completely separate Business-owned account and append-only ledger. OWNER and MANAGER members can read the balance and history through `GET /api/v1/businesses/:businessId/rewards`; STAFF cannot access it. Credits and feature unlock policies are deliberately absent until a trusted platform lifecycle requires them.
+
 The public web booking page is available at `/:businessSlug/:experienceSlug`. It renders explicit occurrences or generated appointment slots, all published custom field types, mandatory guest details, a review step, and the recorded reservation confirmation. Publishing and opening reservations remain separate business actions; the web page never claims that an email was sent.
 
 Business users sign in at `/login` and manage active Organizations, Businesses, Experiences, draft questions, Resources, availability, Occurrences, and reservations at `/dashboard`. Access tokens remain in memory and reloads restore authentication through the rotating HttpOnly refresh cookie. OWNER and MANAGER controls mutate through authenticated APIs; STAFF access stays read-only and backend authorization remains authoritative.
