@@ -8,6 +8,7 @@ import {
 } from '../../../lib/api/public-booking';
 import { money } from '../../../lib/booking';
 import { BookingFlow } from './booking-flow';
+import { Providers } from '../../providers';
 type Props = {
   params: Promise<{ businessSlug: string; experienceSlug: string }>;
 };
@@ -72,7 +73,9 @@ export default async function ExperiencePage({ params }: Props) {
               </details>
             )}
           </aside>
-          <BookingFlow data={data} />
+          <Providers>
+            <BookingFlow data={data} />
+          </Providers>
         </div>
         <footer>
           Powered by <strong>BizzRes</strong>

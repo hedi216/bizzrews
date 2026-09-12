@@ -207,7 +207,8 @@ test('transactional guest booking and business management flow', async (t) => {
     customer: {
       fullName: ' Guest ',
       phone: ' +216000 ',
-      email: 'guest@example.com',
+      // Matching an account email must not claim a guest reservation.
+      email: owner.user.email,
     },
     booking: { occurrenceId: occurrence.body.id, participantCount: 1 },
     answers: { transport: 'bus' },
@@ -252,6 +253,75 @@ test('transactional guest booking and business management flow', async (t) => {
 
   assert.equal(
     (
+      await db.reservation.findUnique({
+        where: { id: reservation.id },
+        select: { customerUserId: true },
+      })
+    ).customerUserId,
+    null,
+  );
+  const secondStart = new Date(Date.now() + 172_800_000).toISOString();
+  const secondEnd = new Date(Date.now() + 176_400_000).toISOString();
+  const secondOccurrence = await request(
+    `/experiences/${experienceId}/occurrences`,
+    {
+      method: 'POST',
+      token: owner.accessToken,
+      body: { startAt: secondStart, endAt: secondEnd, capacity: 1 },
+    },
+  );
+  assert.equal(secondOccurrence.status, 201);
+  const accountBooking = await request(publicPath + '/reservations', {
+    method: 'POST',
+    token: owner.accessToken,
+    body: {
+      ...reservationBody,
+      booking: {
+        occurrenceId: secondOccurrence.body.id,
+        participantCount: 1,
+      },
+    },
+  });
+  assert.equal(accountBooking.status, 201);
+  assert.equal(
+    (
+      await db.reservation.findUnique({
+        where: { id: accountBooking.body.reservation.id },
+        select: { customerUserId: true },
+      })
+    ).customerUserId,
+    owner.user.id,
+  );
+  const history = await request('/customers/me/reservations', {
+    token: owner.accessToken,
+  });
+  assert.equal(history.status, 200);
+  assert.deepEqual(
+    history.body.reservations.map((row) => row.id),
+    [accountBooking.body.reservation.id],
+  );
+  const profile = await request('/customers/me/profile', {
+    method: 'PATCH',
+    token: owner.accessToken,
+    body: { displayName: '  Booking Customer  ' },
+  });
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.displayName, 'Booking Customer');
+  assert.equal((await request('/customers/me/reservations')).status, 401);
+  assert.equal(
+    (
+      await request(publicPath + '/reservations', {
+        method: 'POST',
+        token: 'invalid',
+        body: reservationBody,
+      })
+    ).status,
+    401,
+  );
+  checks += 10;
+
+  assert.equal(
+    (
       await request(`/occurrences/${occurrence.body.id}`, {
         token: owner.accessToken,
       })
@@ -272,7 +342,7 @@ test('transactional guest booking and business management flow', async (t) => {
     token: owner.accessToken,
   });
   assert.equal(listed.status, 200);
-  assert.equal(listed.body.reservations.length, 1);
+  assert.equal(listed.body.reservations.length, 2);
   assert.equal(
     listed.body.reservations[0].answers[0].definitionSnapshot.key,
     'transport',
@@ -319,5 +389,5 @@ test('transactional guest booking and business management flow', async (t) => {
     201,
   );
   checks += 2;
-  assert.equal(checks, 26);
+  assert.equal(checks, 36);
 });

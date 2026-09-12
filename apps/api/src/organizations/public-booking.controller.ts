@@ -9,6 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthRateLimit, AuthRateLimitGuard } from '../auth/rate-limit';
+import { OptionalAccessTokenGuard } from '../auth/optional-access-token.guard';
+import type { AuthenticatedRequest } from '../auth/access-token.guard';
+import { Req } from '@nestjs/common';
 import { CreateReservationDto } from './dto/booking.dto';
 import { PublicBookingService } from './public-booking.service';
 import { SchedulingService } from './scheduling.service';
@@ -43,13 +46,14 @@ export class PublicBookingController {
     return this.scheduling.publicSlots(b, e, date, resourceId);
   }
   @Post('reservations')
-  @UseGuards(AuthRateLimitGuard)
+  @UseGuards(OptionalAccessTokenGuard, AuthRateLimitGuard)
   @AuthRateLimit(20, 15 * 60_000)
   reserve(
     @Param('businessSlug') b: string,
     @Param('experienceSlug') e: string,
     @Body() body: CreateReservationDto,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.s.reserve(b, e, body);
+    return this.s.reserve(b, e, body, request.auth?.sub);
   }
 }

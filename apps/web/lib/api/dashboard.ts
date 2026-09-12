@@ -128,6 +128,18 @@ export type Reservation = {
   createdAt: string;
   answers: Array<{ value: unknown; definitionSnapshot: unknown }>;
 };
+export type CustomerReservation = {
+  id: string;
+  status: 'CONFIRMED' | 'CANCELLED';
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  participantCount: number;
+  totalAmount: string;
+  currency: string;
+  experienceSnapshot: unknown;
+  createdAt: string;
+};
 
 export class DashboardApiError extends Error {
   status: number;
@@ -186,6 +198,16 @@ export const dashboardApi = {
     ),
   logout: () => request<void>('/auth/logout', undefined, { method: 'POST' }),
   me: (token: string) => request<User>('/auth/me', token),
+  customerReservations: (token: string) =>
+    request<{ reservations: CustomerReservation[] }>(
+      '/customers/me/reservations',
+      token,
+    ),
+  updateCustomerProfile: (token: string, displayName: string | null) =>
+    request<User>('/customers/me/profile', token, {
+      method: 'PATCH',
+      body: JSON.stringify({ displayName }),
+    }),
   organizations: (token: string) =>
     request<{ organizations: Organization[] }>('/organizations', token),
   experiences: (token: string, businessId: string) =>

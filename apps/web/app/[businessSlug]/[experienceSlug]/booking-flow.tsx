@@ -19,6 +19,7 @@ import {
   type ReservationResult,
 } from '../../../lib/api/public-booking';
 import { CustomField } from './custom-field';
+import { useSession } from '../../providers';
 type Step =
   'availability' | 'details' | 'questions' | 'review' | 'confirmation';
 const friendly = (e: unknown) =>
@@ -31,6 +32,7 @@ const friendly = (e: unknown) =>
     : 'BizzRes is temporarily unavailable. Please try again.';
 
 export function BookingFlow({ data }: { data: PublicExperience }) {
+  const session = useSession();
   const { business, experience, publishedRevision: revision, fields } = data;
   const generated = revision.schedulingMode === 'GENERATED_SLOTS';
   const [step, setStep] = useState<Step>('availability');
@@ -145,6 +147,7 @@ export function BookingFlow({ data }: { data: PublicExperience }) {
         business.slug,
         experience.slug,
         buildReservationPayload(customer, selection, answers),
+        session.token ?? undefined,
       );
       setResult(response);
       setStep('confirmation');

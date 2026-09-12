@@ -142,12 +142,16 @@ export const publicBookingApi = {
     businessSlug: string,
     experienceSlug: string,
     payload: ReservationPayload,
+    accessToken?: string,
   ) =>
     request<ReservationResult>(
       `${base(businessSlug, experienceSlug)}/reservations`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify(payload),
       },
     ),

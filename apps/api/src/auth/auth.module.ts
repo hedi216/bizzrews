@@ -6,6 +6,7 @@ import { AUTH_CONFIG, loadAuthConfig } from './auth.config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthRateLimitGuard } from './rate-limit';
+import { OptionalAccessTokenGuard } from './optional-access-token.guard';
 
 @Module({
   imports: [
@@ -22,8 +23,14 @@ import { AuthRateLimitGuard } from './rate-limit';
     { provide: AUTH_CONFIG, useFactory: loadAuthConfig },
     AuthService,
     AccessTokenGuard,
+    OptionalAccessTokenGuard,
     AuthRateLimitGuard,
   ],
-  exports: [AccessTokenGuard, AuthRateLimitGuard, JwtModule],
+  exports: [
+    AccessTokenGuard,
+    OptionalAccessTokenGuard,
+    AuthRateLimitGuard,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

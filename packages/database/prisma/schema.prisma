@@ -63,16 +63,17 @@ enum DayOfWeek {
 }
 
 model User {
-  id                 String               @id @default(uuid()) @db.Uuid
-  email              String
-  normalizedEmail    String               @unique
-  displayName        String?
-  disabledAt         DateTime?            @db.Timestamptz(3)
-  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime             @updatedAt @db.Timestamptz(3)
-  memberships        OrganizationMember[]
-  passwordCredential PasswordCredential?
-  authSessions       AuthSession[]
+  id                   String               @id @default(uuid()) @db.Uuid
+  email                String
+  normalizedEmail      String               @unique
+  displayName          String?
+  disabledAt           DateTime?            @db.Timestamptz(3)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
+  memberships          OrganizationMember[]
+  passwordCredential   PasswordCredential?
+  authSessions         AuthSession[]
+  customerReservations Reservation[]        @relation("CustomerReservations")
 }
 
 model Organization {
@@ -273,6 +274,7 @@ model Reservation {
   experienceId       String            @db.Uuid
   revisionId         String            @db.Uuid
   occurrenceId       String            @db.Uuid
+  customerUserId     String?           @db.Uuid
   status             ReservationStatus @default(CONFIRMED)
   customerFullName   String
   customerPhone      String
@@ -290,15 +292,17 @@ model Reservation {
   createdAt          DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
 
-  revision   ExperienceRevision  @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
-  occurrence Occurrence          @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
-  events     ReservationEvent[]
-  answers    ReservationAnswer[]
+  revision     ExperienceRevision  @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  occurrence   Occurrence          @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  customerUser User?               @relation("CustomerReservations", fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  events       ReservationEvent[]
+  answers      ReservationAnswer[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, experienceId, revisionId, id])
   @@index([organizationId, occurrenceId, status])
   @@index([organizationId, startAt])
+  @@index([customerUserId, createdAt])
 }
 
 model ReservationEvent {

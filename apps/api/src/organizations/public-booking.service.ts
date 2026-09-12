@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { Prisma } from '@bizzres/database';
@@ -100,7 +101,12 @@ export class PublicBookingService {
       }),
     };
   }
-  async reserve(b: string, e: string, input: CreateReservationDto) {
+  async reserve(
+    b: string,
+    e: string,
+    input: CreateReservationDto,
+    customerUserId?: string,
+  ) {
     const resolved = await this.resolve(b, e);
     return this.db.client.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Experience" WHERE "id"=${resolved.id}::uuid FOR UPDATE`;
@@ -129,6 +135,13 @@ export class PublicBookingService {
         !x.publishedRevision?.publishedAt
       )
         throw new ConflictException('Reservations are not open.');
+      if (customerUserId) {
+        const customer = await tx.user.findFirst({
+          where: { id: customerUserId, disabledAt: null },
+          select: { id: true },
+        });
+        if (!customer) throw new UnauthorizedException('Unauthorized.');
+      }
       const explicit = input.booking.occurrenceId;
       const generated = input.booking.slot;
       if ((explicit ? 1 : 0) + (generated ? 1 : 0) !== 1)
@@ -221,6 +234,7 @@ export class PublicBookingService {
           experienceId: x.id,
           revisionId: x.publishedRevisionId,
           occurrenceId: o.id,
+          customerUserId,
           customerFullName: input.customer.fullName,
           customerPhone: input.customer.phone,
           customerEmail: input.customer.email,
