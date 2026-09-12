@@ -25,6 +25,8 @@ const expectedTables = [
   'ExperienceResource',
   'ResourceWeeklyAvailability',
   'ResourceAvailabilityOverride',
+  'CustomerLoyaltyAccount',
+  'CustomerLoyaltyTransaction',
 ].sort();
 let client;
 let transaction = false;

@@ -49,4 +49,35 @@ export class CustomersService {
       })),
     };
   }
+
+  async loyalty(userId: string) {
+    const user = await this.db.client.user.findFirst({
+      where: { id: userId, disabledAt: null },
+      select: { id: true },
+    });
+    if (!user) throw new UnauthorizedException('Unauthorized.');
+    const accounts = await this.db.client.customerLoyaltyAccount.findMany({
+      where: { userId, business: { archivedAt: null } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        balance: true,
+        updatedAt: true,
+        business: { select: { id: true, name: true, slug: true } },
+        transactions: {
+          take: 100,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            type: true,
+            pointsDelta: true,
+            balanceAfter: true,
+            description: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    return { accounts };
+  }
 }

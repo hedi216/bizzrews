@@ -140,6 +140,20 @@ export type CustomerReservation = {
   experienceSnapshot: unknown;
   createdAt: string;
 };
+export type CustomerLoyaltyAccount = {
+  id: string;
+  balance: number;
+  updatedAt: string;
+  business: { id: string; name: string; slug: string };
+  transactions: Array<{
+    id: string;
+    type: 'EARN' | 'SPEND';
+    pointsDelta: number;
+    balanceAfter: number;
+    description: string | null;
+    createdAt: string;
+  }>;
+};
 
 export class DashboardApiError extends Error {
   status: number;
@@ -201,6 +215,11 @@ export const dashboardApi = {
   customerReservations: (token: string) =>
     request<{ reservations: CustomerReservation[] }>(
       '/customers/me/reservations',
+      token,
+    ),
+  customerLoyalty: (token: string) =>
+    request<{ accounts: CustomerLoyaltyAccount[] }>(
+      '/customers/me/loyalty',
       token,
     ),
   updateCustomerProfile: (token: string, displayName: string | null) =>

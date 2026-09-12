@@ -62,28 +62,36 @@ enum DayOfWeek {
   SUNDAY
 }
 
+enum CustomerLoyaltyTransactionType {
+  EARN
+  SPEND
+}
+
 model User {
-  id                   String               @id @default(uuid()) @db.Uuid
+  id                   String                   @id @default(uuid()) @db.Uuid
   email                String
-  normalizedEmail      String               @unique
+  normalizedEmail      String                   @unique
   displayName          String?
-  disabledAt           DateTime?            @db.Timestamptz(3)
-  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
+  disabledAt           DateTime?                @db.Timestamptz(3)
+  createdAt            DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @db.Timestamptz(3)
   memberships          OrganizationMember[]
   passwordCredential   PasswordCredential?
   authSessions         AuthSession[]
-  customerReservations Reservation[]        @relation("CustomerReservations")
+  customerReservations Reservation[]            @relation("CustomerReservations")
+  loyaltyAccounts      CustomerLoyaltyAccount[]
 }
 
 model Organization {
-  id         String               @id @default(uuid()) @db.Uuid
-  name       String
-  archivedAt DateTime?            @db.Timestamptz(3)
-  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime             @updatedAt @db.Timestamptz(3)
-  members    OrganizationMember[]
-  businesses Business[]
+  id                          String                       @id @default(uuid()) @db.Uuid
+  name                        String
+  archivedAt                  DateTime?                    @db.Timestamptz(3)
+  createdAt                   DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt                   DateTime                     @updatedAt @db.Timestamptz(3)
+  members                     OrganizationMember[]
+  businesses                  Business[]
+  customerLoyaltyAccounts     CustomerLoyaltyAccount[]
+  customerLoyaltyTransactions CustomerLoyaltyTransaction[]
 }
 
 model OrganizationMember {
@@ -117,9 +125,11 @@ model Business {
   createdAt             DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime              @updatedAt @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  experiences  Experience[]
-  resources    Resource[]
+  organization                Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  experiences                 Experience[]
+  resources                   Resource[]
+  customerLoyaltyAccounts     CustomerLoyaltyAccount[]
+  customerLoyaltyTransactions CustomerLoyaltyTransaction[]
 
   @@unique([organizationId, id])
 }
@@ -292,17 +302,57 @@ model Reservation {
   createdAt          DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
 
-  revision     ExperienceRevision  @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
-  occurrence   Occurrence          @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
-  customerUser User?               @relation("CustomerReservations", fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  events       ReservationEvent[]
-  answers      ReservationAnswer[]
+  revision            ExperienceRevision           @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  occurrence          Occurrence                   @relation(fields: [organizationId, experienceId, occurrenceId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  customerUser        User?                        @relation("CustomerReservations", fields: [customerUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  events              ReservationEvent[]
+  answers             ReservationAnswer[]
+  loyaltyTransactions CustomerLoyaltyTransaction[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, experienceId, revisionId, id])
   @@index([organizationId, occurrenceId, status])
   @@index([organizationId, startAt])
   @@index([customerUserId, createdAt])
+}
+
+model CustomerLoyaltyAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  userId         String   @db.Uuid
+  balance        Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  business     Business                     @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  user         User                         @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  transactions CustomerLoyaltyTransaction[]
+
+  @@unique([organizationId, businessId, userId])
+  @@unique([organizationId, businessId, id])
+  @@index([userId, updatedAt])
+}
+
+model CustomerLoyaltyTransaction {
+  id             String                         @id @default(uuid()) @db.Uuid
+  organizationId String                         @db.Uuid
+  businessId     String                         @db.Uuid
+  accountId      String                         @db.Uuid
+  reservationId  String?                        @db.Uuid
+  type           CustomerLoyaltyTransactionType
+  pointsDelta    Int
+  balanceAfter   Int                            @default(0)
+  description    String?
+  createdAt      DateTime                       @default(now()) @db.Timestamptz(3)
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  business     Business               @relation(fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  account      CustomerLoyaltyAccount @relation(fields: [organizationId, businessId, accountId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  reservation  Reservation?           @relation(fields: [organizationId, reservationId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([organizationId, businessId, accountId, createdAt])
 }
 
 model ReservationEvent {

@@ -22,4 +22,9 @@ export class CustomersController {
   reservations(@CurrentAuth() auth: AccessTokenClaims) {
     return this.customers.reservations(auth.sub);
   }
+
+  @Get('loyalty')
+  loyalty(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.customers.loyalty(auth.sub);
+  }
 }

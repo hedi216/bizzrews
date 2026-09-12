@@ -300,6 +300,11 @@ test('transactional guest booking and business management flow', async (t) => {
     history.body.reservations.map((row) => row.id),
     [accountBooking.body.reservation.id],
   );
+  const loyalty = await request('/customers/me/loyalty', {
+    token: owner.accessToken,
+  });
+  assert.equal(loyalty.status, 200);
+  assert.deepEqual(loyalty.body.accounts, []);
   const profile = await request('/customers/me/profile', {
     method: 'PATCH',
     token: owner.accessToken,
@@ -318,7 +323,7 @@ test('transactional guest booking and business management flow', async (t) => {
     ).status,
     401,
   );
-  checks += 10;
+  checks += 12;
 
   assert.equal(
     (
@@ -389,5 +394,5 @@ test('transactional guest booking and business management flow', async (t) => {
     201,
   );
   checks += 2;
-  assert.equal(checks, 36);
+  assert.equal(checks, 38);
 });

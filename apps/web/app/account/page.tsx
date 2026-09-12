@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   dashboardApi,
   type CustomerReservation,
+  type CustomerLoyaltyAccount,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
 
@@ -11,6 +12,7 @@ export default function AccountPage() {
   const session = useSession();
   const router = useRouter();
   const [rows, setRows] = useState<CustomerReservation[]>([]);
+  const [loyalty, setLoyalty] = useState<CustomerLoyaltyAccount[]>([]);
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   useEffect(() => {
@@ -22,6 +24,10 @@ export default function AccountPage() {
       .authorized((token) => dashboardApi.customerReservations(token))
       .then((result) => setRows(result.reservations))
       .catch(() => setMessage('Could not load your reservations.'));
+    void session
+      .authorized((token) => dashboardApi.customerLoyalty(token))
+      .then((result) => setLoyalty(result.accounts))
+      .catch(() => setMessage('Could not load your loyalty balance.'));
   }, [session]);
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -64,6 +70,27 @@ export default function AccountPage() {
           <button type="submit">Save profile</button>
         </form>
         {message && <p className="notice">{message}</p>}
+      </section>
+      <section className="account-card">
+        <p className="eyebrow">Loyalty</p>
+        <h2>Your points</h2>
+        {loyalty.length ? (
+          loyalty.map((account) => (
+            <article className="account-reservation" key={account.id}>
+              <strong>{account.business.name}</strong>
+              <span>{account.balance} points</span>
+              {account.transactions.map((entry) => (
+                <small key={entry.id}>
+                  {entry.pointsDelta > 0 ? '+' : ''}
+                  {entry.pointsDelta} ·{' '}
+                  {entry.description ?? entry.type.toLowerCase()}
+                </small>
+              ))}
+            </article>
+          ))
+        ) : (
+          <p>No loyalty points yet.</p>
+        )}
       </section>
       <section className="account-card">
         <p className="eyebrow">Bookings</p>
