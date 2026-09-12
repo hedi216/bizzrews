@@ -449,6 +449,30 @@ export class ExperiencesService {
       return { ...this.revision(draft), fields };
     });
   }
+  async setReservations(userId: string, experienceId: string, open: boolean) {
+    await this.access.requireExperience(userId, experienceId, true);
+    if (open) {
+      const e = await this.database.client.experience.findUniqueOrThrow({
+        where: { id: experienceId },
+        select: {
+          publishedRevisionId: true,
+          publishedRevision: { select: { publishedAt: true } },
+        },
+      });
+      if (!e.publishedRevisionId || !e.publishedRevision?.publishedAt)
+        throw new ConflictException('Experience must be published first.');
+    }
+    return this.database.client.experience.update({
+      where: { id: experienceId },
+      data: { acceptingReservations: open },
+      select: {
+        id: true,
+        slug: true,
+        publishedRevisionId: true,
+        acceptingReservations: true,
+      },
+    });
+  }
 
   private singleDraft<
     T extends { priceAmount: { toFixed(digits: number): string } },

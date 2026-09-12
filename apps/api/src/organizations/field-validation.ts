@@ -64,7 +64,7 @@ export function validateFieldRules(
     );
   return keys.length ? rules : null;
 }
-function compareDecimal(a: string, b: string): number {
+export function compareDecimal(a: string, b: string): number {
   const scale = (value: string) => {
     const negative = value.startsWith('-');
     const raw = negative ? value.slice(1) : value;

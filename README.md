@@ -57,6 +57,12 @@ Authenticated platform users can call `POST /api/v1/organizations` to atomically
 
 Active organization members can read Businesses and Experiences through `GET /api/v1/organizations/:organizationId/businesses`, `GET /api/v1/businesses/:businessId`, `GET /api/v1/businesses/:businessId/experiences`, and `GET /api/v1/experiences/:experienceId`. OWNER and MANAGER members can create or update Businesses and create Experiences through the corresponding `POST`/`PATCH` endpoints. Creating an Experience also creates its unpublished version-1 draft atomically; draft content is edited with `PATCH /api/v1/experiences/:experienceId/draft`, while `PATCH /api/v1/experiences/:experienceId` changes only its slug. Monetary values use decimal strings, and STAFF membership is read-only.
 
+Active members read occurrences through `GET /api/v1/experiences/:experienceId/occurrences` and `GET /api/v1/occurrences/:occurrenceId`. OWNER and MANAGER members create and update occurrences, cancel empty occurrences, and open or close reservations through the corresponding domain-action endpoints. Occurrence times are explicit instants and retain their IANA timezone.
+
+Direct public booking links use `GET /api/v1/public/businesses/:businessSlug/experiences/:experienceSlug`; future availability is exposed by its `/occurrences` child and guest reservation submission by its `/reservations` child. Reservation creation validates published custom questions, creates server-owned snapshots, and locks occurrence capacity transactionally. The published revision price is the reservation total in this first version and is not multiplied by participant count.
+
+Active members list and read reservations through `GET /api/v1/experiences/:experienceId/reservations` and `GET /api/v1/reservations/:reservationId`. OWNER and MANAGER members cancel with `POST /api/v1/reservations/:reservationId/cancel`; cancelled reservations stop consuming occurrence capacity.
+
 OWNER and MANAGER members configure draft questions through `POST`, `PATCH`, and `DELETE /api/v1/experiences/:experienceId/draft/fields`, with option mutations under `.../fields/:fieldId/options`. `POST /api/v1/experiences/:experienceId/publish` atomically freezes the current revision and makes it authoritative without enabling reservations. `POST /api/v1/experiences/:experienceId/draft` then clones the published revision, fields, and options into the next editable version. The lifecycle is draft → publish → immutable revision → next draft.
 
 ```sh

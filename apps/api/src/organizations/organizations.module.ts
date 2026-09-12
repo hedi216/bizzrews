@@ -10,6 +10,12 @@ import { ExperiencesController } from './experiences.controller';
 import { ExperiencesService } from './experiences.service';
 import { DraftFieldsController } from './draft-fields.controller';
 import { DraftFieldsService } from './draft-fields.service';
+import { PublicBookingController } from './public-booking.controller';
+import { PublicBookingService } from './public-booking.service';
+import { ReservationsController } from './reservations.controller';
+import { ReservationsService } from './reservations.service';
+import { OccurrencesController } from './occurrences.controller';
+import { OccurrencesService } from './occurrences.service';
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -18,6 +24,9 @@ import { DraftFieldsService } from './draft-fields.service';
     BusinessesController,
     ExperiencesController,
     DraftFieldsController,
+    PublicBookingController,
+    ReservationsController,
+    OccurrencesController,
   ],
   providers: [
     OrganizationsService,
@@ -25,6 +34,9 @@ import { DraftFieldsService } from './draft-fields.service';
     BusinessesService,
     ExperiencesService,
     DraftFieldsService,
+    PublicBookingService,
+    ReservationsService,
+    OccurrencesService,
   ],
 })
 export class OrganizationsModule {}

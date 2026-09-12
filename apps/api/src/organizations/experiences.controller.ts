@@ -77,4 +77,18 @@ export class ExperiencesController {
   ) {
     return this.experiences.createDraft(auth.sub, experienceId);
   }
+  @Post('experiences/:experienceId/reservations/open')
+  open(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('experienceId', ParseUUIDPipe) id: string,
+  ) {
+    return this.experiences.setReservations(auth.sub, id, true);
+  }
+  @Post('experiences/:experienceId/reservations/close')
+  close(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('experienceId', ParseUUIDPipe) id: string,
+  ) {
+    return this.experiences.setReservations(auth.sub, id, false);
+  }
 }
