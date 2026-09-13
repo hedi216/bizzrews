@@ -209,6 +209,19 @@ async function request<T>(
 }
 
 export const dashboardApi = {
+  register: (email: string, password: string, displayName?: string) =>
+    request<{ accessToken: string; expiresIn: number; user: User }>(
+      '/auth/register',
+      undefined,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+          ...(displayName?.trim() ? { displayName: displayName.trim() } : {}),
+        }),
+      },
+    ),
   login: (email: string, password: string) =>
     request<{ accessToken: string; expiresIn: number; user: User }>(
       '/auth/login',
@@ -240,6 +253,27 @@ export const dashboardApi = {
     }),
   organizations: (token: string) =>
     request<{ organizations: Organization[] }>('/organizations', token),
+  createOrganization: (
+    token: string,
+    body: {
+      organizationName: string;
+      business: {
+        name: string;
+        slug: string;
+        description?: string | null;
+        timezone: string;
+        defaultCurrency: string;
+      };
+    },
+  ) =>
+    request<{
+      organization: { id: string; name: string };
+      membership: { id: string; role: 'OWNER'; active: true };
+      business: Business;
+    }>('/organizations', token, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   experiences: (token: string, businessId: string) =>
     request<{ experiences: Experience[] }>(
       `/businesses/${businessId}/experiences`,

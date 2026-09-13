@@ -43,3 +43,51 @@ test('API failures become sanitized typed errors', async () => {
       e.message === 'Not allowed',
   );
 });
+
+test('registration uses the existing auth session contract', async () => {
+  const called = mock({ accessToken: 'token', user: { id: 'u' } }, 201);
+  await dashboardApi.register('USER@EXAMPLE.COM', 'a secure password', 'Ada');
+  const c = called();
+  assert.match(c.url, /\/auth\/register$/);
+  assert.equal(c.init.method, 'POST');
+  assert.deepEqual(JSON.parse(c.init.body), {
+    email: 'USER@EXAMPLE.COM',
+    password: 'a secure password',
+    displayName: 'Ada',
+  });
+});
+
+test('onboarding calls the atomic organizations endpoint', async () => {
+  const called = mock({ organization: {}, membership: {}, business: {} }, 201);
+  await dashboardApi.createOrganization('token', {
+    organizationName: 'Studio',
+    business: {
+      name: 'Studio',
+      slug: 'studio',
+      timezone: 'Europe/Paris',
+      defaultCurrency: 'EUR',
+    },
+  });
+  const c = called();
+  assert.match(c.url, /\/organizations$/);
+  assert.equal(c.init.method, 'POST');
+  assert.equal(c.init.headers.Authorization, 'Bearer token');
+});
+
+test('draft scheduling preserves zero and positive buffers', async () => {
+  const called = mock({ id: 'revision' });
+  await dashboardApi.updateDraft('token', 'experience', {
+    schedulingMode: 'GENERATED_SLOTS',
+    durationMinutes: 30,
+    slotIntervalMinutes: 30,
+    bufferBeforeMinutes: 0,
+    bufferAfterMinutes: 15,
+  });
+  assert.deepEqual(JSON.parse(called().init.body), {
+    schedulingMode: 'GENERATED_SLOTS',
+    durationMinutes: 30,
+    slotIntervalMinutes: 30,
+    bufferBeforeMinutes: 0,
+    bufferAfterMinutes: 15,
+  });
+});

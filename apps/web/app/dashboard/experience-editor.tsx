@@ -32,6 +32,9 @@ export function ExperienceEditor({
     [error, setError] = useState(''),
     [pending, setPending] = useState(false);
   const writable = role !== 'STAFF';
+  const paymentBlocksOpening =
+    detail.publishedRevision?.paymentMode !== undefined &&
+    detail.publishedRevision.paymentMode !== 'NONE';
   useEffect(() => {
     let active = true;
     void session
@@ -138,10 +141,31 @@ export function ExperienceEditor({
               }
             >
               <option value="NONE">No online payment</option>
-              <option value="OPTIONAL">Optional payment</option>
-              <option value="REQUIRED">Required payment</option>
-              <option value="DEPOSIT">Deposit</option>
+              <option
+                value="OPTIONAL"
+                disabled={draft.paymentMode !== 'OPTIONAL'}
+              >
+                Optional payment — coming soon
+              </option>
+              <option
+                value="REQUIRED"
+                disabled={draft.paymentMode !== 'REQUIRED'}
+              >
+                Required payment — coming soon
+              </option>
+              <option
+                value="DEPOSIT"
+                disabled={draft.paymentMode !== 'DEPOSIT'}
+              >
+                Deposit — coming soon
+              </option>
             </select>
+            {draft.paymentMode !== 'NONE' && (
+              <small>
+                Online reservations cannot be opened until payment processing is
+                available. Select “No online payment” to accept bookings.
+              </small>
+            )}
           </label>
           {draft.paymentMode === 'DEPOSIT' && (
             <Input
@@ -179,6 +203,24 @@ export function ExperienceEditor({
                 value={draft.slotIntervalMinutes ?? 30}
                 set={(slotIntervalMinutes) =>
                   setDraft({ ...draft, slotIntervalMinutes })
+                }
+              />
+              <NumberInput
+                label="Buffer before (minutes)"
+                min={0}
+                max={1440}
+                value={draft.bufferBeforeMinutes ?? 0}
+                set={(bufferBeforeMinutes) =>
+                  setDraft({ ...draft, bufferBeforeMinutes })
+                }
+              />
+              <NumberInput
+                label="Buffer after (minutes)"
+                min={0}
+                max={1440}
+                value={draft.bufferAfterMinutes ?? 0}
+                set={(bufferAfterMinutes) =>
+                  setDraft({ ...draft, bufferAfterMinutes })
                 }
               />
             </>
@@ -278,7 +320,9 @@ export function ExperienceEditor({
         </a>
         {writable && detail.publishedRevision && (
           <button
-            disabled={pending}
+            disabled={
+              pending || (paymentBlocksOpening && !detail.acceptingReservations)
+            }
             onClick={() =>
               void act((t) =>
                 dashboardApi.setReservations(
@@ -291,7 +335,9 @@ export function ExperienceEditor({
           >
             {detail.acceptingReservations
               ? 'Close reservations'
-              : 'Open reservations'}
+              : paymentBlocksOpening
+                ? 'Online payments coming soon'
+                : 'Open reservations'}
           </button>
         )}
       </div>
@@ -318,17 +364,22 @@ function NumberInput({
   label,
   value,
   set,
+  min = 1,
+  max,
 }: {
   label: string;
   value: number;
   set: (v: number) => void;
+  min?: number;
+  max?: number;
 }) {
   return (
     <label>
       {label}
       <input
         type="number"
-        min="1"
+        min={min}
+        max={max}
         required
         value={value}
         onChange={(e) => set(Number(e.target.value))}

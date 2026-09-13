@@ -155,6 +155,61 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
     },
   });
   assert.equal(block.status, 201);
+  const formBlock = await request(blockPath, {
+    method: 'POST',
+    token: owner.body.accessToken,
+    body: {
+      type: 'FORM',
+      position: 1,
+      config: { heading: 'Reserve', submitLabel: 'Book this time' },
+    },
+  });
+  assert.equal(formBlock.status, 201);
+  assert.equal(
+    (
+      await request(blockPath, {
+        method: 'POST',
+        token: owner.body.accessToken,
+        body: { type: 'FORM', position: 2, config: {} },
+      })
+    ).status,
+    409,
+  );
+  const temporaryBlock = await request(blockPath, {
+    method: 'POST',
+    token: owner.body.accessToken,
+    body: { type: 'TEXT', position: 2, config: { body: 'Temporary' } },
+  });
+  assert.equal(temporaryBlock.status, 201);
+  assert.equal(
+    (
+      await request(`${blockPath}/${temporaryBlock.body.id}`, {
+        method: 'PATCH',
+        token: owner.body.accessToken,
+        body: { type: 'FORM', config: {} },
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await request(`${blockPath}/${temporaryBlock.body.id}`, {
+        method: 'DELETE',
+        token: owner.body.accessToken,
+      })
+    ).status,
+    204,
+  );
+  assert.equal(
+    (
+      await request(`${blockPath}/${formBlock.body.id}`, {
+        method: 'DELETE',
+        token: owner.body.accessToken,
+      })
+    ).status,
+    204,
+  );
+  checks += 6;
   assert.equal(
     (
       await request(blockPath, {

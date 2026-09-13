@@ -9,6 +9,7 @@ export default function Home() {
       <Link className="public-cta" href="/marketplace">
         Explore experiences
       </Link>
+      <Link href="/account">My account</Link>
     </main>
   );
 }

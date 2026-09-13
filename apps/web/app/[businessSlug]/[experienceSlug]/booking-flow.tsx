@@ -31,7 +31,13 @@ const friendly = (e: unknown) =>
         : e.message
     : 'BizzRes is temporarily unavailable. Please try again.';
 
-export function BookingFlow({ data }: { data: PublicExperience }) {
+export function BookingFlow({
+  data,
+  submitLabel = 'Confirm reservation',
+}: {
+  data: PublicExperience;
+  submitLabel?: string;
+}) {
   const session = useSession();
   const { business, experience, publishedRevision: revision, fields } = data;
   const generated = revision.schedulingMode === 'GENERATED_SLOTS';
@@ -374,7 +380,7 @@ export function BookingFlow({ data }: { data: PublicExperience }) {
         )}
         {step === 'review' ? (
           <button onClick={() => void submit()} disabled={submitting}>
-            {submitting ? 'Confirming…' : 'Confirm reservation'}
+            {submitting ? 'Confirming…' : submitLabel}
           </button>
         ) : (
           <button onClick={next}>Continue</button>

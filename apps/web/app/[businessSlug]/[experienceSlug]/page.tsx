@@ -10,6 +10,8 @@ import { money } from '../../../lib/booking';
 import { BookingFlow } from './booking-flow';
 import { Providers } from '../../providers';
 import { PageBlocks } from './page-blocks';
+import { bookingBlockConfig } from '../../../lib/page-block-layout';
+import { onlineBookingAvailable } from '../../../lib/payment-availability';
 type Props = {
   params: Promise<{ businessSlug: string; experienceSlug: string }>;
 };
@@ -59,6 +61,9 @@ export default async function ExperiencePage({ params }: Props) {
               height={1086}
             />
           </Link>
+          <Link href="/account" className="account-link">
+            My account
+          </Link>
         </header>
         <div className="experience-layout">
           <aside className="experience-card">
@@ -66,12 +71,6 @@ export default async function ExperiencePage({ params }: Props) {
             <h1>{r.name}</h1>
             {r.description && <p className="description">{r.description}</p>}
             <div className="price">{money(r.priceAmount, r.currency)}</div>
-            {r.paymentMode === 'DEPOSIT' && r.depositAmount && (
-              <p>
-                A deposit of {money(r.depositAmount, r.currency)} will be
-                required.
-              </p>
-            )}
             <p className="timezone">Times shown in {data.business.timezone}</p>
             {r.cancellationTerms && (
               <details>
@@ -81,12 +80,29 @@ export default async function ExperiencePage({ params }: Props) {
             )}
           </aside>
           <div>
-            <PageBlocks blocks={data.pageBlocks} />
-            <div id="booking">
-              <Providers>
-                <BookingFlow data={data} />
-              </Providers>
-            </div>
+            <PageBlocks
+              blocks={data.pageBlocks}
+              booking={
+                onlineBookingAvailable(r.paymentMode) ? (
+                  <Providers>
+                    <BookingFlow
+                      data={data}
+                      submitLabel={
+                        bookingBlockConfig(data.pageBlocks).submitLabel
+                      }
+                    />
+                  </Providers>
+                ) : (
+                  <div className="state-card">
+                    <h2>Online booking is not available yet</h2>
+                    <p>
+                      This experience uses a payment option that BizzRes cannot
+                      process yet. Please contact the business directly.
+                    </p>
+                  </div>
+                )
+              }
+            />
           </div>
         </div>
         <footer>

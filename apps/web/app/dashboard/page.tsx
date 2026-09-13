@@ -29,6 +29,10 @@ export default function DashboardPage() {
       .authorized((t) => dashboardApi.organizations(t))
       .then((r) => {
         if (active) {
+          if (!r.organizations.length) {
+            router.replace('/onboarding');
+            return;
+          }
           setOrganizations(r.organizations);
           setOrganizationId(r.organizations[0]?.id ?? '');
           setBusinessId(r.organizations[0]?.businesses[0]?.id ?? '');
@@ -38,7 +42,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [router, session]);
   useEffect(() => {
     if (!businessId) return;
     let active = true;

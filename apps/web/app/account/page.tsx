@@ -13,10 +13,11 @@ export default function AccountPage() {
   const router = useRouter();
   const [rows, setRows] = useState<CustomerReservation[]>([]);
   const [loyalty, setLoyalty] = useState<CustomerLoyaltyAccount[]>([]);
-  const [name, setName] = useState('');
+  const [name, setName] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   useEffect(() => {
-    if (!session.loading && !session.user) router.replace('/login');
+    if (!session.loading && !session.user)
+      router.replace('/login?next=/account');
   }, [router, session.loading, session.user]);
   useEffect(() => {
     if (!session.user) return;
@@ -33,7 +34,10 @@ export default function AccountPage() {
     event.preventDefault();
     try {
       await session.authorized((token) =>
-        dashboardApi.updateCustomerProfile(token, name.trim() || null),
+        dashboardApi.updateCustomerProfile(
+          token,
+          (name ?? session.user?.displayName ?? '').trim() || null,
+        ),
       );
       setMessage('Profile saved.');
     } catch {
@@ -64,7 +68,7 @@ export default function AccountPage() {
           <input
             id="displayName"
             maxLength={120}
-            value={name}
+            value={name ?? session.user?.displayName ?? ''}
             onChange={(event) => setName(event.target.value)}
           />
           <button type="submit">Save profile</button>

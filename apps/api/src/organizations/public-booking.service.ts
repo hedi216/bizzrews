@@ -142,6 +142,10 @@ export class PublicBookingService {
         !x.publishedRevision?.publishedAt
       )
         throw new ConflictException('Reservations are not open.');
+      if (x.publishedRevision.paymentMode !== 'NONE')
+        throw new ConflictException(
+          'Online payment processing is not available yet for this payment mode.',
+        );
       if (customerUserId) {
         const customer = await tx.user.findFirst({
           where: { id: customerUserId, disabledAt: null },
@@ -190,11 +194,26 @@ export class PublicBookingService {
         const existing = await tx.occurrence.findFirst({
           where: {
             organizationId: x.organizationId,
+            experienceId: x.id,
             resourceId: slot.resourceId,
             startAt,
             endAt,
           },
         });
+        if (
+          !existing &&
+          (await tx.occurrence.count({
+            where: {
+              organizationId: x.organizationId,
+              resourceId: slot.resourceId,
+              startAt,
+              endAt,
+            },
+          }))
+        )
+          throw new ConflictException(
+            'This time is no longer available. Please choose another.',
+          );
         if (existing) {
           await tx.$queryRaw`SELECT "id" FROM "Occurrence" WHERE "id"=${existing.id}::uuid FOR UPDATE`;
           if (existing.cancelledAt)

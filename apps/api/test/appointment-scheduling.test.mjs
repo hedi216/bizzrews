@@ -296,6 +296,57 @@ test('resource scheduling, DST slots, and generated booking concurrency', async 
     ).status,
     204,
   );
+  const crossExperience = await request(
+    `/businesses/${business.id}/experiences`,
+    {
+      method: 'POST',
+      token: owner.accessToken,
+      body: {
+        slug: `other-service-${mark}`,
+        name: 'Other service',
+        currency: 'EUR',
+      },
+    },
+  );
+  assert.equal(crossExperience.status, 201);
+  const conflictSlot = (await request(`${publicPath}/slots?date=2027-03-29`))
+    .body.slots[1];
+  const foreignOccurrence = await db.occurrence.create({
+    data: {
+      organizationId: orgId,
+      businessId: business.id,
+      experienceId: crossExperience.body.experience.id,
+      resourceId: resource.body.id,
+      startAt: new Date(conflictSlot.startAt),
+      endAt: new Date(conflictSlot.endAt),
+      timezone: 'Europe/Paris',
+      capacity: 1,
+    },
+  });
+  const crossLinked = await request(`${publicPath}/reservations`, {
+    method: 'POST',
+    body: {
+      customer: {
+        fullName: 'Cross-link check',
+        phone: '+216000',
+        email: 'cross-link@example.com',
+      },
+      booking: {
+        slot: {
+          resourceId: resource.body.id,
+          startAt: conflictSlot.startAt,
+        },
+        participantCount: 1,
+      },
+    },
+  });
+  assert.equal(crossLinked.status, 409);
+  assert.equal(
+    await db.reservation.count({
+      where: { occurrenceId: foreignOccurrence.id, experienceId },
+    }),
+    0,
+  );
   const first = (await request(`${publicPath}/slots?date=2027-03-29`)).body
     .slots[0];
   const booking = {

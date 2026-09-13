@@ -1,25 +1,30 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSession } from '../providers';
-export default function LoginPage() {
+import { safeNext } from '../../lib/safe-next';
+function LoginForm() {
   const router = useRouter(),
-    session = useSession();
+    session = useSession(),
+    searchParams = useSearchParams(),
+    next = safeNext(searchParams.get('next'), '/dashboard');
+  const accountIntent = next === '/account';
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [error, setError] = useState(''),
     [pending, setPending] = useState(false);
   useEffect(() => {
-    if (!session.loading && session.user) router.replace('/dashboard');
-  }, [router, session.loading, session.user]);
+    if (!session.loading && session.user) router.replace(next);
+  }, [next, router, session.loading, session.user]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     setPending(true);
     setError('');
     try {
       await session.login(email, password);
-      router.replace('/dashboard');
+      router.replace(next);
     } catch {
       setError('Email or password is incorrect.');
       setPending(false);
@@ -74,7 +79,26 @@ export default function LoginPage() {
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <p className="auth-alternative">
+          New to BizzRes?{' '}
+          <Link
+            href={
+              accountIntent
+                ? '/register?next=/account'
+                : '/register?next=/onboarding'
+            }
+          >
+            {accountIntent ? 'Create an account' : 'Create a business account'}
+          </Link>
+        </p>
       </section>
     </main>
+  );
+}
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="dashboard-loading">Loading…</main>}>
+      <LoginForm />
+    </Suspense>
   );
 }

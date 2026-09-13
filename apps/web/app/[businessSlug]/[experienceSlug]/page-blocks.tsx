@@ -1,14 +1,32 @@
+import type { ReactNode } from 'react';
 import type { PublicExperience } from '../../../lib/api/public-booking';
+import { bookingBlockIndex } from '../../../lib/page-block-layout';
 
 type Block = PublicExperience['pageBlocks'][number];
 const text = (block: Block, key: string) =>
   typeof block.config[key] === 'string' ? block.config[key] : '';
 
-export function PageBlocks({ blocks }: { blocks: Block[] }) {
+export function PageBlocks({
+  blocks,
+  booking,
+}: {
+  blocks: Block[];
+  booking: ReactNode;
+}) {
+  const formIndex = bookingBlockIndex(blocks);
+  const bookingSection = (heading?: string) => (
+    <article className="page-block booking-block" id="booking">
+      {heading && <h2>{heading}</h2>}
+      {booking}
+    </article>
+  );
   return (
     <section className="public-blocks">
-      {blocks.map((block) => {
-        if (block.type === 'FORM') return null;
+      {blocks.map((block, index) => {
+        if (block.type === 'FORM')
+          return index === formIndex ? (
+            <div key={block.id}>{bookingSection(text(block, 'heading'))}</div>
+          ) : null;
         if (block.type === 'HERO')
           return (
             <article className="page-block hero-block" key={block.id}>
@@ -88,6 +106,7 @@ export function PageBlocks({ blocks }: { blocks: Block[] }) {
           );
         return null;
       })}
+      {formIndex === blocks.length && bookingSection()}
     </section>
   );
 }

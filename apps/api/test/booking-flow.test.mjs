@@ -416,5 +416,69 @@ test('transactional guest booking and business management flow', async (t) => {
     201,
   );
   checks += 2;
-  assert.equal(checks, 40);
+  for (const paymentMode of ['OPTIONAL', 'REQUIRED', 'DEPOSIT']) {
+    const paid = await request(`/businesses/${business.id}/experiences`, {
+      method: 'POST',
+      token: owner.accessToken,
+      body: {
+        slug: `${paymentMode.toLowerCase()}-${mark}`,
+        name: `${paymentMode} terms`,
+        priceAmount: '25',
+        currency: 'TND',
+      },
+    });
+    assert.equal(paid.status, 201);
+    assert.equal(
+      (
+        await request(`/experiences/${paid.body.experience.id}/draft`, {
+          method: 'PATCH',
+          token: owner.accessToken,
+          body: {
+            paymentMode,
+            ...(paymentMode === 'DEPOSIT' ? { depositAmount: '5' } : {}),
+          },
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await request(`/experiences/${paid.body.experience.id}/publish`, {
+          method: 'POST',
+          token: owner.accessToken,
+        })
+      ).status,
+      200,
+    );
+    const opening = await request(
+      `/experiences/${paid.body.experience.id}/reservations/open`,
+      { method: 'POST', token: owner.accessToken },
+    );
+    assert.equal(opening.status, 409);
+    assert.match(opening.body.message, /payment processing is not available/i);
+    checks += 5;
+
+    if (paymentMode === 'REQUIRED') {
+      await db.experience.update({
+        where: { id: paid.body.experience.id },
+        data: { acceptingReservations: true },
+      });
+      const before = await db.reservation.count({
+        where: { experienceId: paid.body.experience.id },
+      });
+      const blocked = await request(
+        `/public/businesses/${business.slug}/experiences/${paid.body.experience.slug}/reservations`,
+        { method: 'POST', body: reservationBody },
+      );
+      assert.equal(blocked.status, 409);
+      assert.equal(
+        await db.reservation.count({
+          where: { experienceId: paid.body.experience.id },
+        }),
+        before,
+      );
+      checks += 2;
+    }
+  }
+  assert.equal(checks, 57);
 });

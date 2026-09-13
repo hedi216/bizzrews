@@ -13,6 +13,11 @@ type Session = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    displayName?: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   authorized: <T>(call: (token: string) => Promise<T>) => Promise<T>;
 };
@@ -43,6 +48,14 @@ export function Providers({ children }: { children: ReactNode }) {
     setToken(result.accessToken);
     setUser(result.user);
   }, []);
+  const register = useCallback(
+    async (email: string, password: string, displayName?: string) => {
+      const result = await dashboardApi.register(email, password, displayName);
+      setToken(result.accessToken);
+      setUser(result.user);
+    },
+    [],
+  );
   const logout = useCallback(async () => {
     try {
       await dashboardApi.logout();
@@ -77,7 +90,7 @@ export function Providers({ children }: { children: ReactNode }) {
     },
     [token],
   );
-  const value = { user, token, loading, login, logout, authorized };
+  const value = { user, token, loading, login, register, logout, authorized };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useSession() {

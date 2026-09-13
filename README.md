@@ -1,12 +1,12 @@
 # BizzRes
 
-BizzRes is an API-first modular monolith foundation. The independent NestJS REST API will support web, mobile, embedded widgets, and integrations as the product evolves. The first booking schema contains nine models; no business APIs, authentication, or business UI are implemented.
+BizzRes is an API-first modular monolith for configurable booking experiences. The repository now includes the NestJS API, authenticated business onboarding and management, the Next.js business workspace, direct-link guest booking, customer account linkage, explicit and recurring scheduling, custom forms, a restrained page builder, and basic marketplace discovery. Mobile clients, embedded widgets, and external integrations can use the same frontend-independent REST API as those channels are developed.
 
 ## Structure
 
 ```text
 apps/api/           NestJS API; modules own their endpoints and behavior
-apps/web/           Next.js App Router; future app.bizzres.com
+apps/web/           Next.js App Router for app.bizzres.com and public booking
 packages/database/ PostgreSQL Prisma schema and client factory; server-only
 packages/shared/   Framework-independent TypeScript; intentionally empty
 assets/            Reserved official brand assets; do not modify casually
@@ -73,7 +73,7 @@ Experience drafts support ordered public presentation blocks through `POST`, `PA
 
 The public marketplace at `/marketplace` and `GET /api/v1/marketplace` returns only non-archived Businesses explicitly marked `LISTED` that have published Experiences. OWNER and MANAGER members opt in or out through `PATCH /api/v1/businesses/:businessId/marketplace`; `UNLISTED` public links continue to work directly without appearing in discovery.
 
-Published Experience revisions carry provider-neutral payment terms: no payment, optional payment, required payment, or a fixed deposit. Amounts use exact PostgreSQL decimals. Payment processing and providers are intentionally not implemented yet.
+Published Experience revisions carry provider-neutral payment terms: no payment, optional payment, required payment, or a fixed deposit. Amounts use exact PostgreSQL decimals. Payment processing and providers are intentionally not implemented yet, so only `NONE` can currently open public reservations; paid modes remain configuration foundation and are shown as coming soon in the workspace.
 
 Commerce has a separate data foundation for Products, Variants, Orders, immutable Order Lines, and pickup/delivery fulfillment. Product choices that affect SKU or price live in ProductVariant rather than custom form options. Order processing APIs, inventory, checkout, and fulfillment operations remain deferred.
 
@@ -101,9 +101,9 @@ npm run test:integrity -w @bizzres/database # Database tests; all fixtures roll 
 
 Prisma remains centralized in `packages/database`. Generated client code is ignored and recreated by generation/build/typecheck. Schema changes use migration history; never use `db push` or destructive reset commands. Generate a draft migration with `npm run migrate -w @bizzres/database -- --create-only --name <name>`, inspect its SQL and custom constraints, then apply the reviewed migration with `npm run db:migrate`. Do not edit a migration after it has been applied.
 
-The applied `initial_booking_domain` migration creates exactly User, Organization, OrganizationMember, Business, Experience, ExperienceRevision, Occurrence, Reservation, and ReservationEvent. Prisma's `_prisma_migrations` table is metadata, not a domain table. Organization is the tenant boundary; Business is the public/commercial entity. Reservations are booking-specific and retain mandatory customer identity snapshots.
+The applied `initial_booking_domain` migration introduced User, Organization, OrganizationMember, Business, Experience, ExperienceRevision, Occurrence, Reservation, and ReservationEvent. Later migrations add the implemented custom-form, scheduling, account-linkage, page-builder, marketplace, notification-outbox, payment-term, loyalty/reward-ledger, and commerce-foundation tables. Prisma's `_prisma_migrations` table is metadata, not a domain table. Organization remains the tenant boundary; Business is the public/commercial entity. Reservations are booking-specific and retain mandatory customer identity snapshots.
 
-The migration's SQL adds tenant-aware foreign keys, CHECK constraints, published-revision immutability, draft-publication rejection, and append-only reservation events. Published revisions reject every later UPDATE, including changes to Prisma's `updatedAt`, and DELETE; the first publication update remains valid. These triggers protect ordinary DML, not an administrator deliberately disabling constraints. Do not add custom-form, scheduling, resource, payment, or order models in this first slice.
+Migration SQL adds tenant-aware foreign keys, CHECK constraints, published-revision immutability, draft-publication rejection, and append-only historical records. Published revisions reject every later UPDATE, including changes to Prisma's `updatedAt`, and DELETE; the first publication update remains valid. These triggers protect ordinary DML, not an administrator deliberately disabling constraints.
 
 The integrity test command is restricted to local `bizzres_dev`. It uses savepoints to verify exact SQLSTATE/constraint failures, rolls back all fixture changes, and verifies table counts are unchanged. It does not test business authorization, capacity-locking services, email normalization, or IANA timezone validation; those application behaviors are deferred.
 
@@ -135,7 +135,7 @@ npm run start -w @bizzres/web
 
 Strict TypeScript applies across workspaces. API build/typecheck scripts first generate and build the shared database package, including when run directly. Lifecycle tests use mocks and require no PostgreSQL credentials. Formatting and linting exclude assets and generated output. Keep official assets unchanged unless a future task explicitly authorizes a change. The assets folder was empty during initialization, so the web page uses text only.
 
-Future booking, event, request, registration, rental, and order flows belong in focused backend modules once designed. Forms, products, payments, and providers remain future work; this foundation introduces no provider coupling or premature abstractions.
+The implemented product remains deliberately bounded. Customer loyalty and Business rewards have separate ledger foundations and read paths, but no earning, redemption, discount, gift, premium-unlock, or anti-fraud product policy. Notifications use a transactional outbox without a delivery worker or provider. Payment terms have no processor or provider integration. Commerce has relational Product, Variant, Order, OrderLine, and fulfillment foundations without checkout APIs, inventory, or order-form UI. Marketplace discovery has no advanced categories or location search. Media uploads/object storage, native mobile apps, embeds, webhooks, and team invitations remain future work.
 
 ## Dependency audit
 

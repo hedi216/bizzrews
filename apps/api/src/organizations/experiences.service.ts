@@ -526,11 +526,17 @@ export class ExperiencesService {
         where: { id: experienceId },
         select: {
           publishedRevisionId: true,
-          publishedRevision: { select: { publishedAt: true } },
+          publishedRevision: {
+            select: { publishedAt: true, paymentMode: true },
+          },
         },
       });
       if (!e.publishedRevisionId || !e.publishedRevision?.publishedAt)
         throw new ConflictException('Experience must be published first.');
+      if (e.publishedRevision.paymentMode !== 'NONE')
+        throw new ConflictException(
+          'Online payment processing is not available yet for this payment mode.',
+        );
     }
     return this.database.client.experience.update({
       where: { id: experienceId },

@@ -33,6 +33,7 @@ export class PageBlocksService {
   async create(u: string, e: string, input: CreatePageBlockDto) {
     const draft = await this.draft(u, e);
     this.validate(input.type, input.config);
+    if (input.type === 'FORM') await this.ensureSingleForm(draft.id);
     return this.db.client.pageBlock.create({
       data: {
         organizationId: draft.organizationId,
@@ -56,6 +57,8 @@ export class PageBlocksService {
     const type = input.type ?? block.type;
     const config = input.config ?? block.config;
     this.validate(type, config as Record<string, unknown>);
+    if (type === 'FORM' && block.type !== 'FORM')
+      await this.ensureSingleForm(draft.id);
     return this.db.client.pageBlock.update({
       where: { id },
       data: {
@@ -128,5 +131,15 @@ export class PageBlocksService {
         'No editable draft exists for this experience.',
       );
     return drafts[0];
+  }
+  private async ensureSingleForm(revisionId: string) {
+    if (
+      await this.db.client.pageBlock.count({
+        where: { revisionId, type: 'FORM' },
+      })
+    )
+      throw new ConflictException(
+        'A booking form block already exists in this draft.',
+      );
   }
 }
