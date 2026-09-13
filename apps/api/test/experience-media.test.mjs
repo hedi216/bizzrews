@@ -227,6 +227,32 @@ test('experience media ownership, page placement, and publication safety', async
     ).status,
     200,
   );
+  const clearedLogo = await request(`/businesses/${tenant.business.id}/logo`, {
+    method: 'PATCH',
+    token: owner.accessToken,
+    body: { mediaId: null },
+  });
+  assert.equal(clearedLogo.status, 200);
+  assert.equal(clearedLogo.body.logoMedia, null);
+  assert.equal(
+    (
+      await db.business.findUniqueOrThrow({
+        where: { id: tenant.business.id },
+        select: { logoMediaId: true },
+      })
+    ).logoMediaId,
+    null,
+  );
+  assert.equal(
+    (
+      await request(`/businesses/${tenant.business.id}/logo`, {
+        method: 'PATCH',
+        token: owner.accessToken,
+        body: { mediaId: image.body.id },
+      })
+    ).status,
+    200,
+  );
 
   const experience = await request(
     `/businesses/${tenant.business.id}/experiences`,

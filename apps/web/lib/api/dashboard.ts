@@ -340,11 +340,19 @@ export const dashboardApi = {
       body,
     });
   },
-  setBusinessLogo: (token: string, businessId: string, mediaId: string) =>
-    request<MediaAsset>(`/businesses/${businessId}/logo`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ mediaId }),
-    }),
+  setBusinessLogo: (
+    token: string,
+    businessId: string,
+    mediaId: string | null,
+  ) =>
+    request<MediaAsset | { logoMedia: null }>(
+      `/businesses/${businessId}/logo`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ mediaId }),
+      },
+    ),
   createExperience: (
     token: string,
     businessId: string,
@@ -546,10 +554,26 @@ export const dashboardApi = {
       endAt: string;
       timezone?: string;
       capacity: number;
+      bookingClosesAt?: string | null;
     },
   ) =>
     request<Occurrence>(`/experiences/${id}/occurrences`, token, {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateOccurrence: (
+    token: string,
+    id: string,
+    body: {
+      startAt?: string;
+      endAt?: string;
+      timezone?: string;
+      capacity?: number;
+      bookingClosesAt?: string | null;
+    },
+  ) =>
+    request<Occurrence>(`/occurrences/${id}`, token, {
+      method: 'PATCH',
       body: JSON.stringify(body),
     }),
   cancelOccurrence: (token: string, id: string) =>

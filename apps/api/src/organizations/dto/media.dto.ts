@@ -1,7 +1,7 @@
-import { IsInt, IsUUID, Min } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 
 export class SetLogoDto {
-  @IsUUID() mediaId!: string;
+  @IsOptional() @IsUUID() mediaId!: string | null;
 }
 
 export class AttachPageBlockMediaDto {

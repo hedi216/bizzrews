@@ -11,6 +11,12 @@ import { useSession } from '../providers';
 
 const optionTypes = ['SELECT', 'RADIO', 'MULTISELECT'];
 type FieldType = (typeof fieldTypes)[number];
+type PendingOption = {
+  id?: string;
+  key: string;
+  label: string;
+  position: number;
+};
 type FormState = {
   id?: string;
   label: string;
@@ -25,6 +31,7 @@ type FormState = {
   maximum: string;
   decimalPlaces: string;
   advanced: boolean;
+  options: PendingOption[];
 };
 const blank = (): FormState => ({
   label: '',
@@ -39,6 +46,7 @@ const blank = (): FormState => ({
   maximum: '',
   decimalPlaces: '',
   advanced: false,
+  options: [],
 });
 
 export function FieldEditor({
@@ -54,8 +62,8 @@ export function FieldEditor({
   const [fields, setFields] = useState(initial);
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const writable = role !== 'STAFF';
-
   function edit(field: DraftField) {
     const rules = (field.validation ?? {}) as Record<string, unknown>;
     setForm({
@@ -72,11 +80,15 @@ export function FieldEditor({
       maximum: stringValue(rules.maximum),
       decimalPlaces: stringValue(rules.decimalPlaces),
       advanced: false,
+      options: field.options.map((option) => ({ ...option })),
     });
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!form) return;
+    if (!form || saving) return;
+    if (optionTypes.includes(form.type) && !form.options.length)
+      return setError('Add at least one option before saving this question.');
+    setSaving(true);
     setError('');
     const key = form.id
       ? form.key
@@ -93,28 +105,67 @@ export function FieldEditor({
       helpText: form.helpText.trim() || null,
       validation: validation(form),
     };
+    let created: DraftField | undefined;
     try {
       if (form.id) {
+        const previous = fields.find((field) => field.id === form.id)!;
         const updated = await session.authorized((token) =>
           dashboardApi.updateField(token, experienceId, form.id!, payload),
         );
+        const options = await synchronizeOptions(
+          session,
+          experienceId,
+          updated,
+          previous.options,
+          form.options,
+        );
+        const complete = { ...updated, options };
         setFields((items) =>
-          items.map((item) => (item.id === updated.id ? updated : item)),
+          items.map((item) => (item.id === complete.id ? complete : item)),
         );
       } else {
-        const created = await session.authorized((token) =>
+        created = await session.authorized((token) =>
           dashboardApi.createField(token, experienceId, {
             ...payload,
             position: fields.length,
           }),
         );
-        setFields((items) => [...items, created]);
+        const options: DraftField['options'] = [];
+        try {
+          for (const option of form.options)
+            options.push(
+              await session.authorized((token) =>
+                dashboardApi.createOption(token, experienceId, created!.id, {
+                  key: option.key,
+                  label: option.label,
+                  position: option.position,
+                }),
+              ),
+            );
+        } catch (optionError) {
+          for (const option of options)
+            await session.authorized((token) =>
+              dashboardApi.deleteOption(
+                token,
+                experienceId,
+                created!.id,
+                option.id,
+              ),
+            );
+          await session.authorized((token) =>
+            dashboardApi.deleteField(token, experienceId, created!.id),
+          );
+          throw optionError;
+        }
+        setFields((items) => [...items, { ...created!, options }]);
       }
       setForm(null);
     } catch (value) {
       setError(
         value instanceof Error ? value.message : 'Could not save question.',
       );
+    } finally {
+      setSaving(false);
     }
   }
   async function remove(field: DraftField) {
@@ -136,8 +187,8 @@ export function FieldEditor({
   async function move(index: number, direction: -1 | 1) {
     const target = index + direction;
     if (target < 0 || target >= fields.length) return;
-    const previous = fields;
-    const next = [...fields];
+    const previous = fields,
+      next = [...fields];
     [next[index], next[target]] = [next[target]!, next[index]!];
     const positioned = next.map((field, position) => ({ ...field, position }));
     setFields(positioned);
@@ -189,6 +240,7 @@ export function FieldEditor({
           setForm={setForm}
           save={save}
           cancel={() => setForm(null)}
+          saving={saving}
         />
       )}
       <div className="question-list builder-list">
@@ -200,6 +252,9 @@ export function FieldEditor({
                 <span>
                   {fieldTypeLabel[field.type] ?? field.type}
                   {field.required ? ' · Required' : ' · Optional'}
+                  {field.options.length
+                    ? ` · ${field.options.length} options`
+                    : ''}
                 </span>
               </div>
               {writable && (
@@ -230,18 +285,6 @@ export function FieldEditor({
                 </div>
               )}
             </div>
-            {optionTypes.includes(field.type) && (
-              <OptionsEditor
-                experienceId={experienceId}
-                field={field}
-                setField={(next) =>
-                  setFields((items) =>
-                    items.map((item) => (item.id === next.id ? next : item)),
-                  )
-                }
-                writable={writable}
-              />
-            )}
           </article>
         ))}
       </div>
@@ -254,12 +297,15 @@ function QuestionEditor({
   setForm,
   save,
   cancel,
+  saving,
 }: {
   form: FormState;
   setForm: (value: FormState) => void;
   save: (event: FormEvent) => void;
   cancel: () => void;
+  saving: boolean;
 }) {
+  const choice = optionTypes.includes(form.type);
   return (
     <form className="question-editor" onSubmit={(event) => void save(event)}>
       <div className="panel-heading">
@@ -282,7 +328,11 @@ function QuestionEditor({
         <select
           value={form.type}
           onChange={(e) =>
-            setForm({ ...form, type: e.target.value as FieldType })
+            setForm({
+              ...form,
+              type: e.target.value as FieldType,
+              options: optionTypes.includes(e.target.value) ? form.options : [],
+            })
           }
         >
           {fieldTypes.map((type) => (
@@ -370,6 +420,18 @@ function QuestionEditor({
           </label>
         </>
       )}
+      {choice && (
+        <PendingOptions
+          options={form.options}
+          setOptions={(options) => setForm({ ...form, options })}
+        />
+      )}
+      {form.type === 'CHECKBOX' && (
+        <p className="wide consent-help">
+          A checkbox records an explicit yes/no answer. Make it required when
+          the customer must accept a condition.
+        </p>
+      )}
       <details className="wide" open={form.advanced}>
         <summary
           onClick={(e) => {
@@ -399,176 +461,182 @@ function QuestionEditor({
             setForm({
               ...form,
               type: 'CHECKBOX',
+              options: [],
               required: true,
               label: form.label || 'I accept the conditions',
             })
           }
         >
-          Use consent template
+          Use consent checkbox template
         </button>
       )}
-      <button>Save question</button>
+      <button disabled={saving}>{saving ? 'Saving…' : 'Save question'}</button>
     </form>
   );
 }
 
-function OptionsEditor({
-  experienceId,
-  field,
-  setField,
-  writable,
+function PendingOptions({
+  options,
+  setOptions,
 }: {
-  experienceId: string;
-  field: DraftField;
-  setField: (field: DraftField) => void;
-  writable: boolean;
+  options: PendingOption[];
+  setOptions: (value: PendingOption[]) => void;
 }) {
-  const session = useSession();
   const [label, setLabel] = useState('');
-  const [error, setError] = useState('');
-  async function add(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const option = await session.authorized((token) =>
-        dashboardApi.createOption(token, experienceId, field.id, {
-          key: uniqueKey(
-            label,
-            field.options.map((item) => item.key),
-          ),
+  function add() {
+    if (!label.trim()) return;
+    setOptions([
+      ...options,
+      {
+        key: uniqueKey(
           label,
-          position: field.options.length,
-        }),
-      );
-      setField({ ...field, options: [...field.options, option] });
-      setLabel('');
-    } catch (value) {
-      setError(
-        value instanceof Error ? value.message : 'Could not add option.',
-      );
-    }
-  }
-  async function update(
-    option: DraftField['options'][number],
-    nextLabel: string,
-  ) {
-    const updated = await session.authorized((token) =>
-      dashboardApi.updateOption(token, experienceId, field.id, option.id, {
-        label: nextLabel,
-      }),
-    );
-    setField({
-      ...field,
-      options: field.options.map((item) =>
-        item.id === option.id ? updated : item,
-      ),
-    });
-  }
-  async function remove(optionId: string) {
-    await session.authorized((token) =>
-      dashboardApi.deleteOption(token, experienceId, field.id, optionId),
-    );
-    setField({
-      ...field,
-      options: field.options.filter((item) => item.id !== optionId),
-    });
-  }
-  async function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= field.options.length) return;
-    const next = [...field.options];
-    [next[index], next[target]] = [next[target]!, next[index]!];
-    const positioned = next.map((item, position) => ({ ...item, position }));
-    setField({ ...field, options: positioned });
-    await Promise.all(
-      [positioned[index]!, positioned[target]!].map((item) =>
-        session.authorized((token) =>
-          dashboardApi.updateOption(token, experienceId, field.id, item.id, {
-            position: item.position,
-          }),
+          options.map((item) => item.key),
         ),
-      ),
-    );
+        label: label.trim(),
+        position: options.length,
+      },
+    ]);
+    setLabel('');
+  }
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= options.length) return;
+    const next = [...options];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    setOptions(next.map((item, position) => ({ ...item, position })));
   }
   return (
-    <div className="options-editor">
-      <h5>Options</h5>
-      {field.options.map((option, index) => (
-        <OptionRow
-          key={option.id}
-          option={option}
-          writable={writable}
-          save={(value) => update(option, value)}
-          remove={() => remove(option.id)}
-          up={() => move(index, -1)}
-          down={() => move(index, 1)}
-          first={index === 0}
-          last={index === field.options.length - 1}
-        />
-      ))}
-      {writable && (
-        <form className="inline-form" onSubmit={(e) => void add(e)}>
+    <fieldset className="pending-options wide">
+      <legend>Options</legend>
+      <p className="muted">Customers will choose from these answers.</p>
+      {options.map((option, index) => (
+        <div className="option-row" key={option.id ?? `${option.key}-${index}`}>
           <input
-            aria-label="Option label"
+            aria-label={`Option ${index + 1}`}
             required
-            placeholder="New option label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            value={option.label}
+            onChange={(e) =>
+              setOptions(
+                options.map((item, position) =>
+                  position === index
+                    ? { ...item, label: e.target.value }
+                    : item,
+                ),
+              )
+            }
           />
-          <button>+ Add option</button>
-        </form>
-      )}
-      {error && <p className="field-error">{error}</p>}
-    </div>
-  );
-}
-
-function OptionRow({
-  option,
-  writable,
-  save,
-  remove,
-  up,
-  down,
-  first,
-  last,
-}: {
-  option: DraftField['options'][number];
-  writable: boolean;
-  save: (label: string) => Promise<void>;
-  remove: () => Promise<void>;
-  up: () => Promise<void>;
-  down: () => Promise<void>;
-  first: boolean;
-  last: boolean;
-}) {
-  const [label, setLabel] = useState(option.label);
-  return (
-    <div className="option-row">
-      <input
-        disabled={!writable}
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        onBlur={() =>
-          label.trim() && label !== option.label && void save(label)
-        }
-      />
-      {writable && (
-        <>
-          <button disabled={first} onClick={() => void up()}>
+          <button
+            type="button"
+            disabled={index === 0}
+            onClick={() => move(index, -1)}
+          >
             ↑
           </button>
-          <button disabled={last} onClick={() => void down()}>
+          <button
+            type="button"
+            disabled={index === options.length - 1}
+            onClick={() => move(index, 1)}
+          >
             ↓
           </button>
-          <button className="danger-link" onClick={() => void remove()}>
-            Delete
+          <button
+            type="button"
+            className="danger-link"
+            onClick={() =>
+              setOptions(
+                options
+                  .filter((_, position) => position !== index)
+                  .map((item, position) => ({ ...item, position })),
+              )
+            }
+          >
+            Remove
           </button>
-        </>
+          <details>
+            <summary>Advanced</summary>
+            <label>
+              Stable option key
+              <input
+                pattern="[a-z][a-z0-9_]*"
+                value={option.key}
+                onChange={(e) =>
+                  setOptions(
+                    options.map((item, position) =>
+                      position === index
+                        ? { ...item, key: e.target.value.toLowerCase() }
+                        : item,
+                    ),
+                  )
+                }
+              />
+            </label>
+          </details>
+        </div>
+      ))}
+      <div className="inline-form">
+        <input
+          aria-label="New option label"
+          placeholder="Example: Beginner"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <button type="button" onClick={add}>
+          + Add option
+        </button>
+      </div>
+      {!options.length && (
+        <p className="field-error">Add at least one option.</p>
       )}
-    </div>
+    </fieldset>
   );
 }
 
+async function synchronizeOptions(
+  session: ReturnType<typeof useSession>,
+  experienceId: string,
+  field: DraftField,
+  previous: DraftField['options'],
+  desired: PendingOption[],
+) {
+  for (const option of previous.filter(
+    (option) => !desired.some((item) => item.id === option.id),
+  ))
+    await session.authorized((token) =>
+      dashboardApi.deleteOption(token, experienceId, field.id, option.id),
+    );
+  const result: DraftField['options'] = [];
+  for (const option of desired)
+    result.push(
+      option.id
+        ? await session.authorized((token) =>
+            dashboardApi.updateOption(
+              token,
+              experienceId,
+              field.id,
+              option.id!,
+              {
+                key: option.key,
+                label: option.label,
+                position: option.position,
+              },
+            ),
+          )
+        : await session.authorized((token) =>
+            dashboardApi.createOption(token, experienceId, field.id, {
+              key: option.key,
+              label: option.label,
+              position: option.position,
+            }),
+          ),
+    );
+  return result;
+}
 function validation(form: FormState) {
   if (['TEXT', 'TEXTAREA'].includes(form.type)) {
     const value: Record<string, number> = {};

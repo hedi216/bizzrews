@@ -48,6 +48,7 @@ export default async function ExperiencePage({ params }: Props) {
     );
   }
   const r = data.publishedRevision;
+  const hasHero = data.pageBlocks.some((block) => block.type === 'HERO');
   return (
     <main className="public-main">
       <div className="public-shell">
@@ -68,8 +69,11 @@ export default async function ExperiencePage({ params }: Props) {
         <div className="experience-layout">
           <aside className="experience-card">
             <p className="business-name">{data.business.name}</p>
-            <h1>{r.name}</h1>
-            {r.description && <p className="description">{r.description}</p>}
+            {!hasHero && <h1>{r.name}</h1>}
+            {!hasHero && r.description && (
+              <p className="description">{r.description}</p>
+            )}
+            {hasHero && <p className="experience-context">Booking details</p>}
             <div className="price">{money(r.priceAmount, r.currency)}</div>
             <p className="timezone">Times shown in {data.business.timezone}</p>
             {r.cancellationTerms && (

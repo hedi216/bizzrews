@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   dashboardApi,
   type Experience,
@@ -35,6 +35,17 @@ export function ExperienceEditor({
   const [active, setActive] = useState<
     'overview' | 'form' | 'design' | 'availability' | 'publish'
   >('overview');
+  const [availabilityKind, setAvailabilityKind] = useState<
+    'ONE_EVENT' | 'SEVERAL_SESSIONS' | 'RECURRING'
+  >(
+    experience.draft?.schedulingMode === 'GENERATED_SLOTS'
+      ? 'RECURRING'
+      : 'ONE_EVENT',
+  );
+  const detectSeveralSessions = useCallback(
+    () => setAvailabilityKind('SEVERAL_SESSIONS'),
+    [],
+  );
   const writable = role !== 'STAFF';
   const paymentBlocksOpening =
     detail.publishedRevision?.paymentMode !== undefined &&
@@ -280,6 +291,23 @@ export function ExperienceEditor({
           businessId={businessId}
           initial={draft.pageBlocks}
           role={role}
+          business={{
+            id: businessId,
+            logoMedia: detail.business?.logoMedia ?? null,
+          }}
+          onBlocksChange={(pageBlocks) =>
+            setDraft((current) =>
+              current ? { ...current, pageBlocks } : current,
+            )
+          }
+          onLogoChange={(logoMedia) =>
+            setDetail((current) => ({
+              ...current,
+              business: current.business
+                ? { ...current.business, logoMedia }
+                : current.business,
+            }))
+          }
         />
       )}
       {active === 'availability' && (
@@ -295,26 +323,51 @@ export function ExperienceEditor({
                   <h3>How customers choose a time</h3>
                 </div>
               </div>
-              <label>
-                Scheduling method
-                <select
-                  value={draft.schedulingMode}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      schedulingMode: e.target
-                        .value as Revision['schedulingMode'],
-                    })
-                  }
-                >
-                  <option value="EXPLICIT_OCCURRENCES">
-                    Specific dates and events
-                  </option>
-                  <option value="GENERATED_SLOTS">
-                    Recurring appointment slots
-                  </option>
-                </select>
-              </label>
+              <div
+                className="availability-kind"
+                role="radiogroup"
+                aria-label="Booking schedule"
+              >
+                {[
+                  [
+                    'ONE_EVENT',
+                    'One fixed event',
+                    'Concert, workshop, party, or conference',
+                  ],
+                  [
+                    'SEVERAL_SESSIONS',
+                    'Several dates or sessions',
+                    'Offer the same Experience on several dates',
+                  ],
+                  [
+                    'RECURRING',
+                    'Recurring appointments',
+                    'Barber, salon, consultation, or recurring service',
+                  ],
+                ].map(([value, label, copy]) => (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={availabilityKind === value}
+                    className={availabilityKind === value ? 'selected' : ''}
+                    key={value}
+                    onClick={() => {
+                      const kind = value as typeof availabilityKind;
+                      setAvailabilityKind(kind);
+                      setDraft({
+                        ...draft,
+                        schedulingMode:
+                          kind === 'RECURRING'
+                            ? 'GENERATED_SLOTS'
+                            : 'EXPLICIT_OCCURRENCES',
+                      });
+                    }}
+                  >
+                    <strong>{label}</strong>
+                    <span>{copy}</span>
+                  </button>
+                ))}
+              </div>
               {draft.schedulingMode === 'GENERATED_SLOTS' && (
                 <div className="scheduling-grid">
                   <NumberInput
@@ -356,11 +409,14 @@ export function ExperienceEditor({
               )}
             </form>
           )}
-          <AssignmentManager
-            businessId={businessId}
-            experienceId={experience.id}
-            role={role}
-          />
+          {(draft?.schedulingMode ??
+            detail.publishedRevision?.schedulingMode) === 'GENERATED_SLOTS' && (
+            <AssignmentManager
+              businessId={businessId}
+              experienceId={experience.id}
+              role={role}
+            />
+          )}
           <BookingsManager
             experienceId={experience.id}
             role={role}
@@ -370,12 +426,25 @@ export function ExperienceEditor({
                 detail.publishedRevision?.schedulingMode) ===
               'EXPLICIT_OCCURRENCES'
             }
+            explicitKind={
+              availabilityKind === 'SEVERAL_SESSIONS'
+                ? 'SEVERAL_SESSIONS'
+                : 'ONE_EVENT'
+            }
+            onSeveralSessionsDetected={detectSeveralSessions}
           />
         </>
       )}
       {active === 'publish' && (
         <div className="publish-panel">
-          {draft && <DraftPreview draft={draft} business={detail.business} />}
+          {draft && (
+            <>
+              <p className="muted">
+                Draft changes become public after you publish this version.
+              </p>
+              <DraftPreview draft={draft} business={detail.business} />
+            </>
+          )}
           {!draft && (
             <p className="muted">
               This published version is immutable. Create a new draft to make
@@ -388,7 +457,9 @@ export function ExperienceEditor({
               href={`/${detail.business?.slug ?? ''}/${detail.slug}`}
               target="_blank"
             >
-              View public page
+              {detail.publishedRevision
+                ? 'View current published page'
+                : 'View public page'}
             </a>
             {writable && detail.publishedRevision && (
               <button

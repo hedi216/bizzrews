@@ -67,12 +67,19 @@ export class MediaService {
     }
   }
 
-  async setLogo(userId: string, businessId: string, mediaId: string) {
+  async setLogo(userId: string, businessId: string, mediaId: string | null) {
     const business = await this.access.requireBusiness(
       userId,
       businessId,
       true,
     );
+    if (mediaId === null) {
+      await this.db.client.business.update({
+        where: { id: businessId },
+        data: { logoMediaId: null },
+      });
+      return { logoMedia: null };
+    }
     const media = await this.db.client.mediaAsset.findFirst({
       where: {
         id: mediaId,

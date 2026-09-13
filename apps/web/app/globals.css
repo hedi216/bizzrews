@@ -1378,6 +1378,116 @@ footer {
   object-fit: cover;
   border-radius: 10px;
 }
+.pending-options,
+.brand-assets,
+.single-event-summary {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--soft);
+}
+.pending-options legend {
+  font-weight: 750;
+}
+.pending-options .option-row {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--paper);
+  flex-wrap: wrap;
+}
+.pending-options .option-row > input {
+  flex: 1 1 180px;
+}
+.pending-options details {
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.consent-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+}
+.brand-assets {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.brand-assets img,
+.block-media-preview {
+  width: min(100%, 240px);
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 11px;
+  background: var(--paper);
+}
+.availability-kind {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.availability-kind button {
+  display: grid;
+  gap: 6px;
+  min-height: 110px;
+  padding: 15px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.availability-kind button span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.availability-kind button.selected {
+  border-color: var(--brand);
+  background: var(--soft);
+}
+.event-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.event-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.event-form button {
+  align-self: end;
+  min-height: 46px;
+}
+.session-card {
+  align-items: center;
+}
+.single-event-summary {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+.single-event-summary .eyebrow {
+  margin: 0;
+}
+.single-event-summary strong {
+  font-size: 1.08rem;
+}
+.single-event-summary span {
+  color: var(--brand);
+  font-weight: 700;
+}
+.single-event-summary.unavailable span {
+  color: var(--danger);
+}
+.experience-context {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 750;
+}
 @media (max-width: 760px) {
   .auth-card {
     padding: 28px 22px;
@@ -1463,5 +1573,12 @@ footer {
   }
   .builder-panel {
     padding: 15px;
+  }
+  .availability-kind,
+  .event-form {
+    grid-template-columns: 1fr;
+  }
+  .pending-options .option-row {
+    align-items: stretch;
   }
 }

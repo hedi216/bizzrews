@@ -7,157 +7,262 @@ import {
   type Reservation,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
+
+type ExplicitKind = 'ONE_EVENT' | 'SEVERAL_SESSIONS';
+type EventForm = {
+  id?: string;
+  date: string;
+  start: string;
+  end: string;
+  capacity: number;
+  bookingClosesAt: string;
+};
+const empty = (): EventForm => ({
+  date: '',
+  start: '',
+  end: '',
+  capacity: 1,
+  bookingClosesAt: '',
+});
+
 export function BookingsManager({
   experienceId,
   role,
   timezone,
   explicit,
+  explicitKind = 'ONE_EVENT',
+  onSeveralSessionsDetected,
 }: {
   experienceId: string;
   role: Organization['role'];
   timezone: string;
   explicit: boolean;
+  explicitKind?: ExplicitKind;
+  onSeveralSessionsDetected?: () => void;
 }) {
-  const s = useSession(),
-    [occ, setOcc] = useState<Occurrence[]>([]),
-    [res, setRes] = useState<Reservation[]>([]),
-    [selected, setSelected] = useState<Reservation | null>(null),
-    [error, setError] = useState(''),
-    [form, setForm] = useState({ start: '', end: '', capacity: 1 });
-  const write = role !== 'STAFF';
+  const session = useSession();
+  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [selected, setSelected] = useState<Reservation | null>(null);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState<EventForm>(empty());
+  const writable = role !== 'STAFF';
+  const active = occurrences.filter((item) => !item.cancelledAt);
+
   useEffect(() => {
-    let active = true;
+    let mounted = true;
     void Promise.all([
-      s.authorized((t) => dashboardApi.occurrences(t, experienceId)),
-      s.authorized((t) => dashboardApi.reservations(t, experienceId)),
+      session.authorized((token) =>
+        dashboardApi.occurrences(token, experienceId),
+      ),
+      session.authorized((token) =>
+        dashboardApi.reservations(token, experienceId),
+      ),
     ])
-      .then(([o, r]) => {
-        if (active) {
-          setOcc(o.occurrences);
-          setRes(r.reservations);
+      .then(([occurrenceResult, reservationResult]) => {
+        if (!mounted) return;
+        setOccurrences(occurrenceResult.occurrences);
+        if (
+          explicit &&
+          occurrenceResult.occurrences.filter((item) => !item.cancelledAt)
+            .length > 1
+        )
+          onSeveralSessionsDetected?.();
+        if (explicit && explicitKind === 'ONE_EVENT') {
+          const current = occurrenceResult.occurrences.find(
+            (item) => !item.cancelledAt,
+          );
+          setForm(current ? toForm(current) : empty());
         }
+        setReservations(reservationResult.reservations);
       })
-      .catch(() => active && setError('Could not load bookings.'));
+      .catch(() => mounted && setError('Could not load bookings.'));
     return () => {
-      active = false;
+      mounted = false;
     };
-  }, [experienceId, s]);
-  async function create(e: FormEvent) {
-    e.preventDefault();
+  }, [
+    experienceId,
+    explicit,
+    explicitKind,
+    onSeveralSessionsDetected,
+    session,
+  ]);
+
+  async function saveEvent(event: FormEvent) {
+    event.preventDefault();
+    setError('');
     try {
-      const value = await s.authorized((t) =>
-        dashboardApi.createOccurrence(t, experienceId, {
-          startAt: new Date(form.start).toISOString(),
-          endAt: new Date(form.end).toISOString(),
-          timezone,
-          capacity: form.capacity,
-        }),
+      const body = {
+        startAt: new Date(`${form.date}T${form.start}`).toISOString(),
+        endAt: new Date(`${form.date}T${form.end}`).toISOString(),
+        timezone,
+        capacity: form.capacity,
+        bookingClosesAt: form.bookingClosesAt
+          ? new Date(form.bookingClosesAt).toISOString()
+          : null,
+      };
+      const value = form.id
+        ? await session.authorized((token) =>
+            dashboardApi.updateOccurrence(token, form.id!, body),
+          )
+        : await session.authorized((token) =>
+            dashboardApi.createOccurrence(token, experienceId, body),
+          );
+      setOccurrences((items) =>
+        form.id
+          ? items.map((item) => (item.id === value.id ? value : item))
+          : [...items, value],
       );
-      setOcc([...occ, value]);
-    } catch (x) {
-      setError(x instanceof Error ? x.message : 'Could not create occurrence.');
+      setForm(explicitKind === 'ONE_EVENT' ? toForm(value) : empty());
+    } catch (value) {
+      setError(
+        value instanceof Error
+          ? value.message
+          : 'Could not save this event. Events with confirmed reservations cannot be structurally changed.',
+      );
     }
   }
-  async function cancel(r: Reservation) {
+
+  async function cancelOccurrence(item: Occurrence) {
+    try {
+      const value = await session.authorized((token) =>
+        dashboardApi.cancelOccurrence(token, item.id),
+      );
+      setOccurrences((items) =>
+        items.map((current) => (current.id === value.id ? value : current)),
+      );
+      if (form.id === value.id) setForm(empty());
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Could not cancel this session.',
+      );
+    }
+  }
+
+  async function cancelReservation(reservation: Reservation) {
     const reason = window.prompt('Cancellation reason (optional)') ?? undefined;
     try {
-      const value = await s.authorized((t) =>
-        dashboardApi.cancelReservation(t, r.id, reason),
+      const value = await session.authorized((token) =>
+        dashboardApi.cancelReservation(token, reservation.id, reason),
       );
-      setRes(res.map((x) => (x.id === r.id ? value : x)));
+      setReservations((items) =>
+        items.map((item) => (item.id === value.id ? value : item)),
+      );
       setSelected(value);
-    } catch (x) {
+    } catch (caught) {
       setError(
-        x instanceof Error ? x.message : 'Could not cancel reservation.',
+        caught instanceof Error
+          ? caught.message
+          : 'Could not cancel reservation.',
       );
     }
   }
+
   return (
     <section className="bookings-manager">
-      {error && <p className="field-error">{error}</p>}
+      {error && <p className="notice error">{error}</p>}
       {explicit && (
-        <>
-          <h3>Occurrences</h3>
-          {write && (
-            <form className="occurrence-form" onSubmit={(e) => void create(e)}>
-              <label>
-                Starts
-                <input
-                  type="datetime-local"
-                  required
-                  value={form.start}
-                  onChange={(e) => setForm({ ...form, start: e.target.value })}
-                />
-              </label>
-              <label>
-                Ends
-                <input
-                  type="datetime-local"
-                  required
-                  value={form.end}
-                  onChange={(e) => setForm({ ...form, end: e.target.value })}
-                />
-              </label>
-              <label>
-                Capacity
-                <input
-                  type="number"
-                  min="1"
-                  value={form.capacity}
-                  onChange={(e) =>
-                    setForm({ ...form, capacity: Number(e.target.value) })
-                  }
-                />
-              </label>
-              <button>Create</button>
-            </form>
-          )}
-          <div className="operations-list">
-            {occ.map((o) => (
-              <article key={o.id}>
-                <div>
-                  <strong>{new Date(o.startAt).toLocaleString()}</strong>
-                  <span>
-                    {o.remainingCapacity}/{o.capacity} available
-                    {o.cancelledAt ? ' · cancelled' : ''}
-                  </span>
-                </div>
-                {write && !o.cancelledAt && !o.reservedParticipants && (
-                  <button
-                    onClick={() =>
-                      void s
-                        .authorized((t) =>
-                          dashboardApi.cancelOccurrence(t, o.id),
-                        )
-                        .then((v) =>
-                          setOcc(occ.map((x) => (x.id === o.id ? v : x))),
-                        )
-                    }
-                  >
-                    Cancel
-                  </button>
-                )}
-              </article>
-            ))}
+        <section className="event-sessions">
+          <div className="panel-heading">
+            <div>
+              <h3>
+                {explicitKind === 'ONE_EVENT'
+                  ? 'Your fixed event'
+                  : 'Dates and sessions'}
+              </h3>
+              <p className="muted">
+                {explicitKind === 'ONE_EVENT'
+                  ? 'Customers will see this date automatically without choosing a time.'
+                  : 'Customers choose one of these sessions before booking.'}
+              </p>
+            </div>
+            {writable && explicitKind === 'SEVERAL_SESSIONS' && (
+              <button
+                className="secondary-button"
+                onClick={() => setForm(empty())}
+              >
+                + Add another session
+              </button>
+            )}
           </div>
-        </>
+          {writable &&
+            (explicitKind === 'ONE_EVENT' ||
+              !form.id ||
+              explicitKind === 'SEVERAL_SESSIONS') && (
+              <EventEditor
+                form={form}
+                setForm={setForm}
+                submit={saveEvent}
+                label={
+                  form.id
+                    ? 'Save changes'
+                    : explicitKind === 'ONE_EVENT'
+                      ? 'Save event'
+                      : 'Add session'
+                }
+              />
+            )}
+          {explicitKind === 'SEVERAL_SESSIONS' && (
+            <div className="session-list">
+              {occurrences.map((item) => (
+                <article className="session-card" key={item.id}>
+                  <div>
+                    <strong>{formatDate(item.startAt, timezone)}</strong>
+                    <span>
+                      {formatTime(item.startAt, timezone)} –{' '}
+                      {formatTime(item.endAt, timezone)}
+                    </span>
+                    <span>
+                      Capacity {item.capacity} · {item.remainingCapacity}{' '}
+                      remaining{item.cancelledAt ? ' · Cancelled' : ''}
+                    </span>
+                  </div>
+                  {writable && !item.cancelledAt && (
+                    <div className="row-actions">
+                      <button onClick={() => setForm(toForm(item))}>
+                        Edit
+                      </button>
+                      {!item.reservedParticipants && (
+                        <button
+                          className="danger-link"
+                          onClick={() => void cancelOccurrence(item)}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+          {explicitKind === 'ONE_EVENT' && active[0] && (
+            <p className="success-text">
+              One event configured. The public booking page will select it
+              automatically.
+            </p>
+          )}
+        </section>
       )}
       <h3>Reservations</h3>
       <div className="operations-list">
-        {res.map((r) => (
+        {reservations.map((reservation) => (
           <button
             className="reservation-row"
-            key={r.id}
-            onClick={() => setSelected(r)}
+            key={reservation.id}
+            onClick={() => setSelected(reservation)}
           >
-            <strong>{r.customerFullName}</strong>
+            <strong>{reservation.customerFullName}</strong>
             <span>
-              {new Date(r.startAt).toLocaleString()} · {r.status}
+              {new Date(reservation.startAt).toLocaleString()} ·{' '}
+              {reservation.status}
             </span>
           </button>
         ))}
       </div>
-      {!res.length && <p className="muted">No reservations yet.</p>}
+      {!reservations.length && <p className="muted">No reservations yet.</p>}
       {selected && (
         <div className="reservation-detail">
           <button
@@ -180,10 +285,10 @@ export function BookingsManager({
               {selected.totalAmount} {selected.currency}
             </dd>
           </dl>
-          {write && selected.status === 'CONFIRMED' && (
+          {writable && selected.status === 'CONFIRMED' && (
             <button
               className="danger-button"
-              onClick={() => void cancel(selected)}
+              onClick={() => void cancelReservation(selected)}
             >
               Cancel reservation
             </button>
@@ -193,3 +298,107 @@ export function BookingsManager({
     </section>
   );
 }
+
+function EventEditor({
+  form,
+  setForm,
+  submit,
+  label,
+}: {
+  form: EventForm;
+  setForm: (value: EventForm) => void;
+  submit: (event: FormEvent) => void;
+  label: string;
+}) {
+  return (
+    <form className="event-form" onSubmit={(event) => void submit(event)}>
+      <label>
+        Date
+        <input
+          type="date"
+          required
+          value={form.date}
+          onChange={(event) => setForm({ ...form, date: event.target.value })}
+        />
+      </label>
+      <label>
+        Starts
+        <input
+          type="time"
+          required
+          value={form.start}
+          onChange={(event) => setForm({ ...form, start: event.target.value })}
+        />
+      </label>
+      <label>
+        Ends
+        <input
+          type="time"
+          required
+          value={form.end}
+          onChange={(event) => setForm({ ...form, end: event.target.value })}
+        />
+      </label>
+      <label>
+        Capacity
+        <input
+          type="number"
+          min="1"
+          required
+          value={form.capacity}
+          onChange={(event) =>
+            setForm({ ...form, capacity: Number(event.target.value) })
+          }
+        />
+      </label>
+      <label>
+        Booking closes <span>(optional)</span>
+        <input
+          type="datetime-local"
+          value={form.bookingClosesAt}
+          onChange={(event) =>
+            setForm({ ...form, bookingClosesAt: event.target.value })
+          }
+        />
+      </label>
+      <button>{label}</button>
+    </form>
+  );
+}
+function toForm(item: Occurrence): EventForm {
+  const start = localParts(item.startAt),
+    end = localParts(item.endAt);
+  return {
+    id: item.id,
+    date: start.date,
+    start: start.time,
+    end: end.time,
+    capacity: item.capacity,
+    bookingClosesAt: item.bookingClosesAt
+      ? localDateTime(item.bookingClosesAt)
+      : '',
+  };
+}
+function localParts(value: string) {
+  const date = new Date(value);
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+function localDateTime(value: string) {
+  const part = localParts(value);
+  return `${part.date}T${part.time}`;
+}
+const pad = (value: number) => String(value).padStart(2, '0');
+const formatDate = (value: string, zone: string) =>
+  new Intl.DateTimeFormat(undefined, {
+    timeZone: zone,
+    dateStyle: 'full',
+  }).format(new Date(value));
+const formatTime = (value: string, zone: string) =>
+  new Intl.DateTimeFormat(undefined, {
+    timeZone: zone,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));

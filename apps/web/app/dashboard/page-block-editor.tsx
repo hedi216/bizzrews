@@ -7,6 +7,7 @@ import {
   type Organization,
   type PageBlock,
   type PageBlockType,
+  type Business,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
 
@@ -40,17 +41,67 @@ export function PageBlockEditor({
   businessId,
   initial,
   role,
+  business,
+  onBlocksChange,
+  onLogoChange,
 }: {
   experienceId: string;
   businessId: string;
   initial: PageBlock[];
   role: Organization['role'];
+  business: Pick<Business, 'id' | 'logoMedia'>;
+  onBlocksChange: (blocks: PageBlock[]) => void;
+  onLogoChange: (logoMedia: { id: string } | null) => void;
 }) {
   const session = useSession();
   const [blocks, setBlocks] = useState(initial);
   const [type, setType] = useState<PageBlockType>('TEXT');
   const [error, setError] = useState('');
+  const [mediaStatus, setMediaStatus] = useState('');
+  const [uploading, setUploading] = useState(false);
   const writable = role !== 'STAFF';
+  function commitBlocks(next: PageBlock[]) {
+    setBlocks(next);
+    onBlocksChange(next);
+  }
+  async function uploadLogo(file?: File) {
+    if (!file || uploading) return;
+    setUploading(true);
+    setMediaStatus('Uploading logo…');
+    setError('');
+    try {
+      const asset = await session.authorized((token) =>
+        dashboardApi.uploadMedia(token, businessId, file),
+      );
+      await session.authorized((token) =>
+        dashboardApi.setBusinessLogo(token, businessId, asset.id),
+      );
+      onLogoChange({ id: asset.id });
+      setMediaStatus('Logo updated. Draft preview refreshed.');
+    } catch (value) {
+      setError(message(value));
+      setMediaStatus('');
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function removeLogo() {
+    setUploading(true);
+    setMediaStatus('Removing logo…');
+    setError('');
+    try {
+      await session.authorized((token) =>
+        dashboardApi.setBusinessLogo(token, businessId, null),
+      );
+      onLogoChange(null);
+      setMediaStatus('Logo removed. Draft preview refreshed.');
+    } catch (value) {
+      setError(message(value));
+      setMediaStatus('');
+    } finally {
+      setUploading(false);
+    }
+  }
   async function add() {
     try {
       const created = await session.authorized((token) =>
@@ -61,7 +112,7 @@ export function PageBlockEditor({
           media: [],
         }),
       );
-      setBlocks([...blocks, created]);
+      commitBlocks([...blocks, created]);
     } catch (value) {
       setError(message(value));
     }
@@ -73,8 +124,8 @@ export function PageBlockEditor({
           config: block.config,
         }),
       );
-      setBlocks((items) =>
-        items.map((item) =>
+      commitBlocks(
+        blocks.map((item) =>
           item.id === block.id ? { ...item, ...updated } : item,
         ),
       );
@@ -96,7 +147,7 @@ export function PageBlockEditor({
       await session.authorized((token) =>
         dashboardApi.deletePageBlock(token, experienceId, block.id),
       );
-      setBlocks(blocks.filter((item) => item.id !== block.id));
+      commitBlocks(blocks.filter((item) => item.id !== block.id));
     } catch (value) {
       setError(message(value));
     }
@@ -108,7 +159,7 @@ export function PageBlockEditor({
     const next = [...blocks];
     [next[index], next[target]] = [next[target]!, next[index]!];
     const positioned = next.map((block, position) => ({ ...block, position }));
-    setBlocks(positioned);
+    commitBlocks(positioned);
     try {
       await Promise.all(
         [positioned[index]!, positioned[target]!].map((block) =>
@@ -120,17 +171,20 @@ export function PageBlockEditor({
         ),
       );
     } catch (value) {
-      setBlocks(old);
+      commitBlocks(old);
       setError(message(value));
     }
   }
   function change(id: string, config: Record<string, unknown>) {
-    setBlocks((items) =>
-      items.map((item) => (item.id === id ? { ...item, config } : item)),
+    commitBlocks(
+      blocks.map((item) => (item.id === id ? { ...item, config } : item)),
     );
   }
   async function upload(block: PageBlock, files: FileList | null) {
     if (!files?.length) return;
+    setUploading(true);
+    setMediaStatus('Uploading image…');
+    setError('');
     try {
       let media = [...block.media];
       const selected = Array.from(files);
@@ -174,24 +228,31 @@ export function PageBlockEditor({
           media.push(attached);
         }
       }
-      setBlocks((items) =>
-        items.map((item) => (item.id === block.id ? { ...item, media } : item)),
+      commitBlocks(
+        blocks.map((item) =>
+          item.id === block.id ? { ...item, media } : item,
+        ),
       );
+      setMediaStatus('Image uploaded. Draft preview refreshed.');
     } catch (value) {
       setError(message(value));
+      setMediaStatus('');
+    } finally {
+      setUploading(false);
     }
   }
   async function removeMedia(block: PageBlock, id: string) {
     await session.authorized((token) =>
       dashboardApi.deletePageBlockMedia(token, experienceId, block.id, id),
     );
-    setBlocks((items) =>
-      items.map((item) =>
+    commitBlocks(
+      blocks.map((item) =>
         item.id === block.id
           ? { ...item, media: item.media.filter((media) => media.id !== id) }
           : item,
       ),
     );
+    setMediaStatus('Image removed. Draft preview refreshed.');
   }
   async function moveMedia(block: PageBlock, index: number, direction: -1 | 1) {
     const target = index + direction;
@@ -199,8 +260,8 @@ export function PageBlockEditor({
     const media = [...block.media];
     [media[index], media[target]] = [media[target]!, media[index]!];
     const positioned = media.map((item, position) => ({ ...item, position }));
-    setBlocks((items) =>
-      items.map((item) =>
+    commitBlocks(
+      blocks.map((item) =>
         item.id === block.id ? { ...item, media: positioned } : item,
       ),
     );
@@ -230,6 +291,58 @@ export function PageBlockEditor({
         </div>
       </div>
       {error && <p className="notice error">{error}</p>}
+      <div className="brand-assets">
+        <div>
+          <p className="eyebrow">Brand assets</p>
+          <h4>Business logo</h4>
+          <p className="muted">
+            One logo is shared across this Business and its Experience pages.
+          </p>
+        </div>
+        {business.logoMedia ? (
+          <Image
+            unoptimized
+            className="business-logo-preview"
+            src={dashboardMediaUrl(business.logoMedia.id)}
+            alt="Current business logo"
+            width={180}
+            height={100}
+          />
+        ) : (
+          <p className="muted">No business logo uploaded yet.</p>
+        )}
+        {writable && (
+          <div className="row-actions">
+            <label className="secondary-button upload-button">
+              {uploading
+                ? 'Uploading…'
+                : business.logoMedia
+                  ? 'Replace logo'
+                  : 'Upload logo'}
+              <input
+                disabled={uploading}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => void uploadLogo(event.target.files?.[0])}
+              />
+            </label>
+            {business.logoMedia && (
+              <button
+                className="danger-link"
+                disabled={uploading}
+                onClick={() => void removeLogo()}
+              >
+                Remove logo
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {mediaStatus && (
+        <p className="success-text" role="status">
+          {mediaStatus}
+        </p>
+      )}
       <div className="builder-list">
         {blocks.map((block, index) => (
           <article className="page-block-card" key={block.id}>
@@ -266,8 +379,46 @@ export function PageBlockEditor({
               disabled={!writable}
               change={(config) => change(block.id, config)}
             />
+            {block.type === 'LOGO' && (
+              <div className="logo-block-editor">
+                {business.logoMedia ? (
+                  <Image
+                    unoptimized
+                    className="business-logo-preview"
+                    src={dashboardMediaUrl(business.logoMedia.id)}
+                    alt="Business logo in this section"
+                    width={180}
+                    height={100}
+                  />
+                ) : (
+                  <p className="muted">No business logo uploaded yet.</p>
+                )}
+                {writable && (
+                  <label className="secondary-button upload-button">
+                    {uploading
+                      ? 'Uploading…'
+                      : business.logoMedia
+                        ? 'Replace logo'
+                        : 'Upload logo'}
+                    <input
+                      disabled={uploading}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(event) =>
+                        void uploadLogo(event.target.files?.[0])
+                      }
+                    />
+                  </label>
+                )}
+              </div>
+            )}
             {['HERO', 'GALLERY'].includes(block.type) && (
               <div className="media-editor">
+                <strong>
+                  {block.type === 'HERO'
+                    ? 'Background image'
+                    : 'Gallery photos'}
+                </strong>
                 <div className="media-grid">
                   {block.media.map((media, mediaIndex) => (
                     <div className="media-tile" key={media.id}>
@@ -312,6 +463,7 @@ export function PageBlockEditor({
                         ? '+ Upload photos'
                         : 'Upload image'}
                     <input
+                      disabled={uploading}
                       type="file"
                       multiple={block.type === 'GALLERY'}
                       accept="image/jpeg,image/png,image/webp"

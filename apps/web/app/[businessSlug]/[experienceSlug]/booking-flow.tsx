@@ -20,6 +20,10 @@ import {
 } from '../../../lib/api/public-booking';
 import { CustomField } from './custom-field';
 import { useSession } from '../../providers';
+import {
+  shouldAutoSelectOccurrence,
+  singleEventStatus,
+} from '../../../lib/event-availability';
 type Step =
   'availability' | 'details' | 'questions' | 'review' | 'confirmation';
 const friendly = (e: unknown) =>
@@ -63,23 +67,40 @@ export function BookingFlow({
     setLoading(true);
     setAvailabilityError('');
     try {
-      if (generated)
+      if (generated) {
         setSlots(
           (await publicBookingApi.slots(business.slug, experience.slug, date))
             .slots,
         );
-      else
-        setOccurrences(
-          (await publicBookingApi.occurrences(business.slug, experience.slug))
-            .occurrences,
-        );
-      setSelection(undefined);
+        setSelection(undefined);
+      } else {
+        const rows = (
+          await publicBookingApi.occurrences(business.slug, experience.slug)
+        ).occurrences;
+        setOccurrences(rows);
+        if (
+          shouldAutoSelectOccurrence(rows, experience.acceptingReservations)
+        ) {
+          setSelection({
+            mode: 'EXPLICIT_OCCURRENCES',
+            occurrence: rows[0]!,
+            participantCount: 1,
+          });
+          setStep('details');
+        } else setSelection(undefined);
+      }
     } catch (e) {
       setAvailabilityError(friendly(e));
     } finally {
       setLoading(false);
     }
-  }, [business.slug, date, experience.slug, generated]);
+  }, [
+    business.slug,
+    date,
+    experience.acceptingReservations,
+    experience.slug,
+    generated,
+  ]);
   useEffect(() => {
     const start = setTimeout(() => void load(), 0);
     return () => clearTimeout(start);
@@ -94,9 +115,19 @@ export function BookingFlow({
   const visibleSlots = resource
     ? slots.filter((s) => s.resource.id === resource)
     : slots;
+  const singleEvent = !generated && !loading && occurrences.length === 1;
+  const singleOccurrence = singleEvent ? occurrences[0] : undefined;
+  const singleEventReady = shouldAutoSelectOccurrence(
+    occurrences,
+    experience.acceptingReservations,
+  );
   const steps: Step[] = fields.length
-    ? ['availability', 'details', 'questions', 'review']
-    : ['availability', 'details', 'review'];
+    ? singleEventReady
+      ? ['details', 'questions', 'review']
+      : ['availability', 'details', 'questions', 'review']
+    : singleEventReady
+      ? ['details', 'review']
+      : ['availability', 'details', 'review'];
   const selectedTime =
     selection?.mode === 'EXPLICIT_OCCURRENCES'
       ? {
@@ -141,7 +172,9 @@ export function BookingFlow({
           : 'details'
         : step === 'questions'
           ? 'details'
-          : 'availability',
+          : singleEventReady
+            ? 'details'
+            : 'availability',
     );
   }
   async function submit() {
@@ -180,6 +213,13 @@ export function BookingFlow({
     );
   return (
     <section className="booking-card">
+      {singleOccurrence && (
+        <SingleEventSummary
+          occurrence={singleOccurrence}
+          zone={business.timezone}
+          acceptingReservations={experience.acceptingReservations}
+        />
+      )}
       <ol className="steps" aria-label="Booking progress">
         {steps.map((s, i) => (
           <li
@@ -200,8 +240,16 @@ export function BookingFlow({
       )}
       {step === 'availability' && (
         <div>
-          <p className="eyebrow">Availability</p>
-          <h2>Choose a time</h2>
+          <p className="eyebrow">
+            {generated ? 'Availability' : singleEvent ? 'Event' : 'Sessions'}
+          </p>
+          <h2>
+            {generated
+              ? 'Choose a time'
+              : singleEvent
+                ? 'Event details'
+                : 'Choose a session'}
+          </h2>
           {!experience.acceptingReservations && (
             <div className="notice">Reservations are currently closed.</div>
           )}
@@ -257,7 +305,7 @@ export function BookingFlow({
               selection={selection}
               select={setSelection}
             />
-          ) : (
+          ) : singleEvent ? null : (
             <OccurrenceList
               items={occurrences}
               zone={business.timezone}
@@ -265,7 +313,7 @@ export function BookingFlow({
               select={setSelection}
             />
           )}
-          {selection?.mode === 'EXPLICIT_OCCURRENCES' && (
+          {selection?.mode === 'EXPLICIT_OCCURRENCES' && !singleEvent && (
             <div className="participant">
               <label htmlFor="participants">Participants</label>
               <select
@@ -321,6 +369,28 @@ export function BookingFlow({
               onChange={(v) => setCustomer({ ...customer, email: v })}
             />
           </div>
+          {selection?.mode === 'EXPLICIT_OCCURRENCES' && singleEvent && (
+            <div className="participant">
+              <label htmlFor="single-event-participants">Participants</label>
+              <select
+                id="single-event-participants"
+                value={selection.participantCount}
+                onChange={(event) =>
+                  setSelection({
+                    ...selection,
+                    participantCount: Number(event.target.value),
+                  })
+                }
+              >
+                {Array.from(
+                  { length: selection.occurrence.remainingCapacity },
+                  (_, index) => index + 1,
+                ).map((count) => (
+                  <option key={count}>{count}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
       {step === 'questions' && (
@@ -373,20 +443,55 @@ export function BookingFlow({
         </div>
       )}
       <div className="actions">
-        {step !== 'availability' && (
-          <button className="secondary" onClick={back}>
-            Back
-          </button>
-        )}
+        {step !== 'availability' &&
+          !(step === 'details' && singleEventReady) && (
+            <button className="secondary" onClick={back}>
+              Back
+            </button>
+          )}
         {step === 'review' ? (
           <button onClick={() => void submit()} disabled={submitting}>
             {submitting ? 'Confirming…' : submitLabel}
           </button>
-        ) : (
+        ) : step !== 'availability' ||
+          (experience.acceptingReservations &&
+            (generated
+              ? visibleSlots.some((slot) => slot.bookable)
+              : occurrences.some((occurrence) => occurrence.bookable))) ? (
           <button onClick={next}>Continue</button>
-        )}
+        ) : null}
       </div>
     </section>
+  );
+}
+function SingleEventSummary({
+  occurrence,
+  zone,
+  acceptingReservations,
+}: {
+  occurrence: PublicOccurrence;
+  zone: string;
+  acceptingReservations: boolean;
+}) {
+  const availability = singleEventStatus(occurrence, acceptingReservations);
+  const status =
+    availability === 'ended'
+      ? 'Event ended / unavailable'
+      : availability === 'closed'
+        ? 'Reservations closed'
+        : availability === 'sold_out'
+          ? 'Sold out'
+          : `${occurrence.remainingCapacity} ${occurrence.remainingCapacity === 1 ? 'place' : 'places'} remaining`;
+  return (
+    <div
+      className={`single-event-summary ${availability === 'available' ? '' : 'unavailable'}`}
+    >
+      <p className="eyebrow">Event date</p>
+      <strong>
+        {dateTime(occurrence.startAt, zone)} – {time(occurrence.endAt, zone)}
+      </strong>
+      <span>{status}</span>
+    </div>
   );
 }
 function FieldInput({
