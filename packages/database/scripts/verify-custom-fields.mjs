@@ -29,6 +29,8 @@ const expectedTables = [
   'BusinessRewardTransaction',
   'Notification',
   'PageBlock',
+  'MediaAsset',
+  'PageBlockMedia',
   'Product',
   'ProductVariant',
   'Order',

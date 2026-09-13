@@ -11,6 +11,7 @@ import { FieldEditor } from './field-editor';
 import { BookingsManager } from './bookings-manager';
 import { AssignmentManager } from './assignment-manager';
 import { PageBlockEditor } from './page-block-editor';
+import { DraftPreview } from './draft-preview';
 export function ExperienceEditor({
   experience,
   role,
@@ -31,6 +32,9 @@ export function ExperienceEditor({
     [draft, setDraft] = useState<Revision | null>(experience.draft),
     [error, setError] = useState(''),
     [pending, setPending] = useState(false);
+  const [active, setActive] = useState<
+    'overview' | 'form' | 'design' | 'availability' | 'publish'
+  >('overview');
   const writable = role !== 'STAFF';
   const paymentBlocksOpening =
     detail.publishedRevision?.paymentMode !== undefined &&
@@ -109,178 +113,159 @@ export function ExperienceEditor({
           Close
         </button>
       </div>
+      <nav className="builder-nav" aria-label="Experience builder">
+        {[
+          ['overview', 'Overview'],
+          ['form', 'Booking form'],
+          ['design', 'Page design'],
+          ['availability', 'Availability'],
+          ['publish', 'Preview & Publish'],
+        ].map(([id, label]) => (
+          <button
+            className={active === id ? 'active' : ''}
+            key={id}
+            onClick={() => {
+              setActive(id as typeof active);
+              if (id === 'publish')
+                void session
+                  .authorized((token) =>
+                    dashboardApi.experience(token, experience.id),
+                  )
+                  .then((fresh) => {
+                    setDetail(fresh);
+                    setDraft(fresh.draft);
+                  });
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="builder-status">
+        <span className={draft ? 'status-draft' : 'status-published'}>
+          {draft ? 'Draft' : 'Published'}
+        </span>
+        {detail.publishedRevision && (
+          <span>Published v{detail.publishedRevision.version}</span>
+        )}
+        <span>
+          {detail.acceptingReservations
+            ? 'Reservations open'
+            : 'Reservations closed'}
+        </span>
+      </div>
       {error && <div className="notice error">{error}</div>}
-      {draft ? (
-        <form className="draft-form" onSubmit={(e) => void save(e)}>
-          <Input
-            label="Name"
-            value={draft.name}
-            set={(name) => setDraft({ ...draft, name })}
-          />
-          <Input
-            label="Price"
-            value={draft.priceAmount}
-            set={(priceAmount) => setDraft({ ...draft, priceAmount })}
-          />
-          <Input
-            label="Currency"
-            value={draft.currency}
-            set={(currency) => setDraft({ ...draft, currency })}
-          />
-          <label>
-            Payment mode
-            <select
-              value={draft.paymentMode}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  paymentMode: e.target.value as Revision['paymentMode'],
-                  depositAmount:
-                    e.target.value === 'DEPOSIT' ? draft.depositAmount : null,
-                })
-              }
-            >
-              <option value="NONE">No online payment</option>
-              <option
-                value="OPTIONAL"
-                disabled={draft.paymentMode !== 'OPTIONAL'}
-              >
-                Optional payment — coming soon
-              </option>
-              <option
-                value="REQUIRED"
-                disabled={draft.paymentMode !== 'REQUIRED'}
-              >
-                Required payment — coming soon
-              </option>
-              <option
-                value="DEPOSIT"
-                disabled={draft.paymentMode !== 'DEPOSIT'}
-              >
-                Deposit — coming soon
-              </option>
-            </select>
-            {draft.paymentMode !== 'NONE' && (
-              <small>
-                Online reservations cannot be opened until payment processing is
-                available. Select “No online payment” to accept bookings.
-              </small>
-            )}
-          </label>
-          {draft.paymentMode === 'DEPOSIT' && (
+      {active === 'overview' &&
+        (draft ? (
+          <form className="draft-form" onSubmit={(e) => void save(e)}>
             <Input
-              label="Deposit amount"
-              value={draft.depositAmount ?? ''}
-              set={(depositAmount) => setDraft({ ...draft, depositAmount })}
+              label="Name"
+              value={draft.name}
+              set={(name) => setDraft({ ...draft, name })}
             />
-          )}
-          <label>
-            Scheduling mode
-            <select
-              value={draft.schedulingMode}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  schedulingMode: e.target.value as Revision['schedulingMode'],
-                })
-              }
-            >
-              <option value="EXPLICIT_OCCURRENCES">Explicit occurrences</option>
-              <option value="GENERATED_SLOTS">Generated slots</option>
-            </select>
-          </label>
-          {draft.schedulingMode === 'GENERATED_SLOTS' && (
-            <>
-              <NumberInput
-                label="Duration (minutes)"
-                value={draft.durationMinutes ?? 30}
-                set={(durationMinutes) =>
-                  setDraft({ ...draft, durationMinutes })
-                }
-              />
-              <NumberInput
-                label="Slot interval (minutes)"
-                value={draft.slotIntervalMinutes ?? 30}
-                set={(slotIntervalMinutes) =>
-                  setDraft({ ...draft, slotIntervalMinutes })
-                }
-              />
-              <NumberInput
-                label="Buffer before (minutes)"
-                min={0}
-                max={1440}
-                value={draft.bufferBeforeMinutes ?? 0}
-                set={(bufferBeforeMinutes) =>
-                  setDraft({ ...draft, bufferBeforeMinutes })
-                }
-              />
-              <NumberInput
-                label="Buffer after (minutes)"
-                min={0}
-                max={1440}
-                value={draft.bufferAfterMinutes ?? 0}
-                set={(bufferAfterMinutes) =>
-                  setDraft({ ...draft, bufferAfterMinutes })
-                }
-              />
-            </>
-          )}
-          <label className="wide">
-            Description
-            <textarea
-              value={draft.description ?? ''}
-              onChange={(e) =>
-                setDraft({ ...draft, description: e.target.value || null })
-              }
+            <Input
+              label="Price"
+              value={draft.priceAmount}
+              set={(priceAmount) => setDraft({ ...draft, priceAmount })}
             />
-          </label>
-          <label className="wide">
-            Cancellation terms
-            <textarea
-              value={draft.cancellationTerms ?? ''}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  cancellationTerms: e.target.value || null,
-                })
-              }
+            <Input
+              label="Currency"
+              value={draft.currency}
+              set={(currency) => setDraft({ ...draft, currency })}
             />
-          </label>
-          {writable && (
-            <div className="editor-actions wide">
-              <button disabled={pending}>Save draft</button>
+            <label>
+              Payment mode
+              <select
+                value={draft.paymentMode}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    paymentMode: e.target.value as Revision['paymentMode'],
+                    depositAmount:
+                      e.target.value === 'DEPOSIT' ? draft.depositAmount : null,
+                  })
+                }
+              >
+                <option value="NONE">No online payment</option>
+                <option
+                  value="OPTIONAL"
+                  disabled={draft.paymentMode !== 'OPTIONAL'}
+                >
+                  Optional payment — coming soon
+                </option>
+                <option
+                  value="REQUIRED"
+                  disabled={draft.paymentMode !== 'REQUIRED'}
+                >
+                  Required payment — coming soon
+                </option>
+                <option
+                  value="DEPOSIT"
+                  disabled={draft.paymentMode !== 'DEPOSIT'}
+                >
+                  Deposit — coming soon
+                </option>
+              </select>
+              {draft.paymentMode !== 'NONE' && (
+                <small>
+                  Online reservations cannot be opened until payment processing
+                  is available. Select “No online payment” to accept bookings.
+                </small>
+              )}
+            </label>
+            {draft.paymentMode === 'DEPOSIT' && (
+              <Input
+                label="Deposit amount"
+                value={draft.depositAmount ?? ''}
+                set={(depositAmount) => setDraft({ ...draft, depositAmount })}
+              />
+            )}
+            <label className="wide">
+              Description
+              <textarea
+                value={draft.description ?? ''}
+                onChange={(e) =>
+                  setDraft({ ...draft, description: e.target.value || null })
+                }
+              />
+            </label>
+            <label className="wide">
+              Cancellation terms
+              <textarea
+                value={draft.cancellationTerms ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    cancellationTerms: e.target.value || null,
+                  })
+                }
+              />
+            </label>
+            {writable && (
+              <div className="editor-actions wide">
+                <button disabled={pending}>Save draft</button>
+              </div>
+            )}
+          </form>
+        ) : (
+          <div className="published-state">
+            <p>
+              Published version {detail.publishedRevision?.version}. Create a
+              new draft to make changes.
+            </p>
+            {writable && (
               <button
-                type="button"
-                className="secondary-button"
                 disabled={pending}
                 onClick={() =>
-                  void act((t) => dashboardApi.publish(t, experience.id))
+                  void act((t) => dashboardApi.createDraft(t, experience.id))
                 }
               >
-                Publish
+                Create next draft
               </button>
-            </div>
-          )}
-        </form>
-      ) : (
-        <div className="published-state">
-          <p>
-            Published version {detail.publishedRevision?.version}. Create a new
-            draft to make changes.
-          </p>
-          {writable && (
-            <button
-              disabled={pending}
-              onClick={() =>
-                void act((t) => dashboardApi.createDraft(t, experience.id))
-              }
-            >
-              Create next draft
-            </button>
-          )}
-        </div>
-      )}
-      {draft?.fields && (
+            )}
+          </div>
+        ))}
+      {active === 'form' && draft?.fields && (
         <FieldEditor
           key={draft.id}
           experienceId={experience.id}
@@ -288,59 +273,169 @@ export function ExperienceEditor({
           role={role}
         />
       )}
-      {draft?.pageBlocks && (
+      {active === 'design' && draft?.pageBlocks && (
         <PageBlockEditor
           key={`page-${draft.id}`}
           experienceId={experience.id}
+          businessId={businessId}
           initial={draft.pageBlocks}
           role={role}
         />
       )}
-      <AssignmentManager
-        businessId={businessId}
-        experienceId={experience.id}
-        role={role}
-      />
-      <BookingsManager
-        experienceId={experience.id}
-        role={role}
-        timezone={timezone}
-        explicit={
-          (draft?.schedulingMode ??
-            detail.publishedRevision?.schedulingMode) === 'EXPLICIT_OCCURRENCES'
-        }
-      />
-      <div className="editor-actions">
-        <a
-          className="secondary-button"
-          href={`/${detail.business?.slug ?? ''}/${detail.slug}`}
-          target="_blank"
-        >
-          View public page
-        </a>
-        {writable && detail.publishedRevision && (
-          <button
-            disabled={
-              pending || (paymentBlocksOpening && !detail.acceptingReservations)
+      {active === 'availability' && (
+        <>
+          {draft && (
+            <form
+              className="builder-panel scheduling-settings"
+              onSubmit={(e) => void save(e)}
+            >
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Availability</p>
+                  <h3>How customers choose a time</h3>
+                </div>
+              </div>
+              <label>
+                Scheduling method
+                <select
+                  value={draft.schedulingMode}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      schedulingMode: e.target
+                        .value as Revision['schedulingMode'],
+                    })
+                  }
+                >
+                  <option value="EXPLICIT_OCCURRENCES">
+                    Specific dates and events
+                  </option>
+                  <option value="GENERATED_SLOTS">
+                    Recurring appointment slots
+                  </option>
+                </select>
+              </label>
+              {draft.schedulingMode === 'GENERATED_SLOTS' && (
+                <div className="scheduling-grid">
+                  <NumberInput
+                    label="Duration (minutes)"
+                    value={draft.durationMinutes ?? 30}
+                    set={(durationMinutes) =>
+                      setDraft({ ...draft, durationMinutes })
+                    }
+                  />
+                  <NumberInput
+                    label="Slot interval (minutes)"
+                    value={draft.slotIntervalMinutes ?? 30}
+                    set={(slotIntervalMinutes) =>
+                      setDraft({ ...draft, slotIntervalMinutes })
+                    }
+                  />
+                  <NumberInput
+                    label="Buffer before (minutes)"
+                    min={0}
+                    max={1440}
+                    value={draft.bufferBeforeMinutes ?? 0}
+                    set={(bufferBeforeMinutes) =>
+                      setDraft({ ...draft, bufferBeforeMinutes })
+                    }
+                  />
+                  <NumberInput
+                    label="Buffer after (minutes)"
+                    min={0}
+                    max={1440}
+                    value={draft.bufferAfterMinutes ?? 0}
+                    set={(bufferAfterMinutes) =>
+                      setDraft({ ...draft, bufferAfterMinutes })
+                    }
+                  />
+                </div>
+              )}
+              {writable && (
+                <button disabled={pending}>Save availability settings</button>
+              )}
+            </form>
+          )}
+          <AssignmentManager
+            businessId={businessId}
+            experienceId={experience.id}
+            role={role}
+          />
+          <BookingsManager
+            experienceId={experience.id}
+            role={role}
+            timezone={timezone}
+            explicit={
+              (draft?.schedulingMode ??
+                detail.publishedRevision?.schedulingMode) ===
+              'EXPLICIT_OCCURRENCES'
             }
-            onClick={() =>
-              void act((t) =>
-                dashboardApi.setReservations(
-                  t,
-                  experience.id,
-                  !detail.acceptingReservations,
-                ),
-              )
-            }
-          >
-            {detail.acceptingReservations
-              ? 'Close reservations'
-              : paymentBlocksOpening
-                ? 'Online payments coming soon'
-                : 'Open reservations'}
-          </button>
-        )}
-      </div>
+          />
+        </>
+      )}
+      {active === 'publish' && (
+        <div className="publish-panel">
+          {draft && <DraftPreview draft={draft} business={detail.business} />}
+          {!draft && (
+            <p className="muted">
+              This published version is immutable. Create a new draft to make
+              changes.
+            </p>
+          )}
+          <div className="editor-actions">
+            <a
+              className="secondary-button"
+              href={`/${detail.business?.slug ?? ''}/${detail.slug}`}
+              target="_blank"
+            >
+              View public page
+            </a>
+            {writable && detail.publishedRevision && (
+              <button
+                disabled={
+                  pending ||
+                  (paymentBlocksOpening && !detail.acceptingReservations)
+                }
+                onClick={() =>
+                  void act((t) =>
+                    dashboardApi.setReservations(
+                      t,
+                      experience.id,
+                      !detail.acceptingReservations,
+                    ),
+                  )
+                }
+              >
+                {detail.acceptingReservations
+                  ? 'Close reservations'
+                  : paymentBlocksOpening
+                    ? 'Online payments coming soon'
+                    : 'Open reservations'}
+              </button>
+            )}
+            {writable && draft && (
+              <button
+                disabled={pending}
+                onClick={() =>
+                  void act((t) => dashboardApi.publish(t, experience.id))
+                }
+              >
+                Publish Experience
+              </button>
+            )}
+            {writable && !draft && detail.publishedRevision && (
+              <button
+                disabled={pending}
+                onClick={() =>
+                  void act((t) => dashboardApi.createDraft(t, experience.id))
+                }
+              >
+                Create a new editable draft
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

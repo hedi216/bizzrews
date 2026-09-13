@@ -35,7 +35,20 @@ const revisionSelect = {
   },
   pageBlocks: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
-    select: { id: true, type: true, position: true, config: true },
+    select: {
+      id: true,
+      type: true,
+      position: true,
+      config: true,
+      media: {
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          position: true,
+          mediaAsset: { select: { id: true } },
+        },
+      },
+    },
   },
 } satisfies Prisma.ExperienceRevisionSelect;
 type PublishedRevision = Prisma.ExperienceRevisionGetPayload<{
@@ -438,6 +451,7 @@ export class PublicBookingService {
             slug: true,
             timezone: true,
             defaultCurrency: true,
+            logoMedia: { select: { id: true } },
           },
         },
         publishedRevision: { select: revisionSelect },

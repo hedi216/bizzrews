@@ -135,6 +135,22 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
   const eid = made.body.experience.id;
   const fieldPath = `/experiences/${eid}/draft/fields`;
   const blockPath = `/experiences/${eid}/draft/page-blocks`;
+  assert.deepEqual(
+    made.body.draft.pageBlocks.map((item) => item.type),
+    ['HERO', 'FORM'],
+  );
+  const defaultHero = made.body.draft.pageBlocks[0];
+  const formBlock = { body: made.body.draft.pageBlocks[1] };
+  assert.equal(
+    (
+      await request(`${blockPath}/${defaultHero.id}`, {
+        method: 'DELETE',
+        token: owner.body.accessToken,
+      })
+    ).status,
+    204,
+  );
+  checks += 2;
   assert.equal(
     (
       await request(blockPath, {
@@ -155,16 +171,6 @@ test('draft fields, publication, and revision cloning lifecycle', async (t) => {
     },
   });
   assert.equal(block.status, 201);
-  const formBlock = await request(blockPath, {
-    method: 'POST',
-    token: owner.body.accessToken,
-    body: {
-      type: 'FORM',
-      position: 1,
-      config: { heading: 'Reserve', submitLabel: 'Book this time' },
-    },
-  });
-  assert.equal(formBlock.status, 201);
   assert.equal(
     (
       await request(blockPath, {

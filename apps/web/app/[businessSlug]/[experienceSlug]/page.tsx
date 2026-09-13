@@ -82,6 +82,7 @@ export default async function ExperiencePage({ params }: Props) {
           <div>
             <PageBlocks
               blocks={data.pageBlocks}
+              businessLogoId={data.business.logoMedia?.id}
               booking={
                 onlineBookingAvailable(r.paymentMode) ? (
                   <Providers>

@@ -93,6 +93,7 @@ enum PageBlockType {
   ITINERARY
   FORM
   CTA
+  LOGO
 }
 
 enum PaymentMode {
@@ -177,6 +178,7 @@ model Business {
   timezone              String
   defaultCurrency       String                @db.Char(3)
   marketplaceVisibility MarketplaceVisibility @default(UNLISTED)
+  logoMediaId           String?               @db.Uuid
   archivedAt            DateTime?             @db.Timestamptz(3)
   createdAt             DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime              @updatedAt @db.Timestamptz(3)
@@ -191,6 +193,8 @@ model Business {
   products                    Product[]
   productVariants             ProductVariant[]
   orders                      Order[]
+  mediaAssets                 MediaAsset[]                 @relation("BusinessMedia")
+  logoMedia                   MediaAsset?                  @relation("BusinessLogo", fields: [organizationId, id, logoMediaId], references: [organizationId, businessId, id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([organizationId, id])
 }
@@ -211,6 +215,7 @@ model Experience {
   publishedRevision   ExperienceRevision?  @relation("PublishedRevision", fields: [organizationId, id, publishedRevisionId], references: [organizationId, experienceId, id], onDelete: NoAction, onUpdate: NoAction)
   occurrences         Occurrence[]
   resourceAssignments ExperienceResource[]
+  pageBlockMedia      PageBlockMedia[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, businessId, id])
@@ -354,6 +359,7 @@ model ExperienceRevision {
   reservations           Reservation[]
   fields                 FieldDefinition[]
   pageBlocks             PageBlock[]
+  pageBlockMedia         PageBlockMedia[]
 
   @@unique([organizationId, experienceId, version])
   @@unique([organizationId, experienceId, id])
@@ -644,9 +650,49 @@ model PageBlock {
   updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
 
   revision ExperienceRevision @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  media    PageBlockMedia[]
 
   @@unique([organizationId, experienceId, revisionId, id])
   @@index([organizationId, experienceId, revisionId, position])
+}
+
+model MediaAsset {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  businessId     String    @db.Uuid
+  originalName   String    @db.VarChar(255)
+  mimeType       String    @db.VarChar(50)
+  sizeBytes      Int
+  storageKey     String    @unique @db.VarChar(100)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  archivedAt     DateTime? @db.Timestamptz(3)
+
+  business          Business         @relation("BusinessMedia", fields: [organizationId, businessId], references: [organizationId, id], onDelete: Restrict, onUpdate: NoAction)
+  logoForBusinesses Business[]       @relation("BusinessLogo")
+  pageBlocks        PageBlockMedia[]
+
+  @@unique([organizationId, businessId, id])
+  @@index([organizationId, businessId, createdAt])
+}
+
+model PageBlockMedia {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  businessId     String   @db.Uuid
+  experienceId   String   @db.Uuid
+  revisionId     String   @db.Uuid
+  pageBlockId    String   @db.Uuid
+  mediaAssetId   String   @db.Uuid
+  position       Int
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  experience Experience         @relation(fields: [organizationId, businessId, experienceId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+  revision   ExperienceRevision @relation(fields: [organizationId, experienceId, revisionId], references: [organizationId, experienceId, id], onDelete: Restrict, onUpdate: NoAction)
+  pageBlock  PageBlock          @relation(fields: [organizationId, experienceId, revisionId, pageBlockId], references: [organizationId, experienceId, revisionId, id], onDelete: Restrict, onUpdate: NoAction)
+  mediaAsset MediaAsset         @relation(fields: [organizationId, businessId, mediaAssetId], references: [organizationId, businessId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([organizationId, experienceId, revisionId, pageBlockId, mediaAssetId])
+  @@index([organizationId, experienceId, revisionId, pageBlockId, position, id])
 }
 
 model FieldOption {

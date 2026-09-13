@@ -86,6 +86,12 @@ test('business and experience draft management authorization', async (t) => {
     await db.fieldDefinition.deleteMany({
       where: { organizationId: { in: organizationIds } },
     });
+    await db.pageBlockMedia.deleteMany({
+      where: { organizationId: { in: organizationIds } },
+    });
+    await db.pageBlock.deleteMany({
+      where: { organizationId: { in: organizationIds } },
+    });
     await db.experienceRevision.deleteMany({
       where: { organizationId: { in: organizationIds } },
     });

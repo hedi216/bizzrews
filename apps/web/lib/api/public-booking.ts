@@ -34,6 +34,7 @@ export type PublicExperience = {
     slug: string;
     timezone: string;
     defaultCurrency: string;
+    logoMedia: { id: string } | null;
   };
   experience: { id: string; slug: string; acceptingReservations: boolean };
   publishedRevision: {
@@ -56,9 +57,21 @@ export type PublicExperience = {
   pageBlocks: Array<{
     id: string;
     type:
-      'HERO' | 'TEXT' | 'GALLERY' | 'LOCATION' | 'ITINERARY' | 'FORM' | 'CTA';
+      | 'HERO'
+      | 'TEXT'
+      | 'GALLERY'
+      | 'LOCATION'
+      | 'ITINERARY'
+      | 'FORM'
+      | 'CTA'
+      | 'LOGO';
     position: number;
     config: Record<string, unknown>;
+    media: Array<{
+      id: string;
+      position: number;
+      mediaAsset: { id: string };
+    }>;
   }>;
 };
 export type PublicOccurrence = {
@@ -187,3 +200,6 @@ export const publicBookingApi = {
       },
     ),
 };
+
+export const publicMediaUrl = (mediaId: string) =>
+  `${API_URL}/public/media/${encodeURIComponent(mediaId)}`;

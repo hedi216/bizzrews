@@ -141,9 +141,10 @@ export default function DashboardPage() {
               <ExperienceCreator
                 business={business}
                 role={organization.role}
-                onCreated={(made) =>
-                  setExperiences((items) => [...items, made])
-                }
+                onCreated={(made) => (
+                  setExperiences((items) => [...items, made]),
+                  setSelected(made)
+                )}
               />
             </div>
           )}

@@ -1,12 +1,15 @@
 'use client';
 import { useState, type FormEvent } from 'react';
+import Image from 'next/image';
 import {
   dashboardApi,
   type Business,
   type Experience,
   type Organization,
+  dashboardMediaUrl,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
+import { slugify } from '../../lib/builder-utils';
 export function BusinessEditor({
   business,
   role,
@@ -40,6 +43,26 @@ export function BusinessEditor({
       setEditing(false);
     } catch (x) {
       setError(x instanceof Error ? x.message : 'Could not save Business.');
+    } finally {
+      setPending(false);
+    }
+  }
+  async function uploadLogo(file?: File) {
+    if (!file) return;
+    setPending(true);
+    setError('');
+    try {
+      const media = await session.authorized((t) =>
+        dashboardApi.uploadMedia(t, business.id, file),
+      );
+      await session.authorized((t) =>
+        dashboardApi.setBusinessLogo(t, business.id, media.id),
+      );
+      const saved = { ...business, logoMedia: { id: media.id } };
+      setForm(saved);
+      onSaved(saved);
+    } catch (x) {
+      setError(x instanceof Error ? x.message : 'Could not upload logo.');
     } finally {
       setPending(false);
     }
@@ -94,6 +117,31 @@ export function BusinessEditor({
           </button>
         </form>
       )}
+      <div className="branding-panel">
+        <div>
+          <strong>Branding</strong>
+          <p className="muted">Your logo can be placed in public pages.</p>
+        </div>
+        {business.logoMedia && (
+          <Image
+            unoptimized
+            className="business-logo-preview"
+            src={dashboardMediaUrl(business.logoMedia.id)}
+            alt={`${business.name} logo`}
+            width={180}
+            height={90}
+          />
+        )}
+        <label className="secondary-button upload-button">
+          {business.logoMedia ? 'Replace logo' : 'Upload logo'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={pending}
+            onChange={(event) => void uploadLogo(event.target.files?.[0])}
+          />
+        </label>
+      </div>
       <div className="editor-actions">
         <span>
           {business.marketplaceVisibility === 'LISTED'
@@ -157,6 +205,7 @@ export function ExperienceCreator({
       priceAmount: '0',
       currency: business.defaultCurrency,
     }),
+    [slugEdited, setSlugEdited] = useState(false),
     [error, setError] = useState('');
   if (role === 'STAFF') return null;
   async function submit(e: FormEvent) {
@@ -176,6 +225,7 @@ export function ExperienceCreator({
       });
       setOpen(false);
       setForm({ ...form, name: '', slug: '', description: '' });
+      setSlugEdited(false);
     } catch (x) {
       setError(x instanceof Error ? x.message : 'Could not create Experience.');
     }
@@ -193,13 +243,25 @@ export function ExperienceCreator({
           <Input
             label="Name"
             value={form.name}
-            onChange={(name) => setForm({ ...form, name })}
+            onChange={(name) =>
+              setForm({
+                ...form,
+                name,
+                slug: slugEdited ? form.slug : slugify(name),
+              })
+            }
           />
-          <Input
-            label="Slug"
-            value={form.slug}
-            onChange={(slug) => setForm({ ...form, slug })}
-          />
+          <label>
+            Public link
+            <input
+              required
+              value={form.slug}
+              onChange={(event) => {
+                setSlugEdited(true);
+                setForm({ ...form, slug: slugify(event.target.value) });
+              }}
+            />
+          </label>
           <Input
             label="Price"
             value={form.priceAmount}
@@ -220,7 +282,7 @@ export function ExperienceCreator({
             />
           </label>
           {error && <p className="field-error">{error}</p>}
-          <button>Create draft</button>
+          <button>Create Experience</button>
         </form>
       )}
     </section>

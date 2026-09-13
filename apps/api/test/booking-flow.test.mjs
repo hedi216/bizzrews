@@ -52,6 +52,8 @@ test('transactional guest booking and business management flow', async (t) => {
           ['ReservationEvent', 'bizzres_reservation_event_append_only'],
           ['FieldOption', 'bizzres_field_option_immutability'],
           ['FieldDefinition', 'bizzres_revision_field_immutability'],
+          ['PageBlockMedia', 'bizzres_page_block_media_immutability'],
+          ['PageBlock', 'bizzres_page_block_immutability'],
           ['ExperienceRevision', 'bizzres_revision_immutability'],
         ];
         for (const [table, trigger] of disabled)
@@ -70,6 +72,8 @@ test('transactional guest booking and business management flow', async (t) => {
           });
           await db.fieldOption.deleteMany({ where: { organizationId } });
           await db.fieldDefinition.deleteMany({ where: { organizationId } });
+          await db.pageBlockMedia.deleteMany({ where: { organizationId } });
+          await db.pageBlock.deleteMany({ where: { organizationId } });
           await db.experienceRevision.deleteMany({ where: { organizationId } });
           await db.experience.deleteMany({ where: { organizationId } });
           await db.business.deleteMany({ where: { organizationId } });

@@ -15,6 +15,7 @@ const businessSelect = {
   timezone: true,
   defaultCurrency: true,
   marketplaceVisibility: true,
+  logoMedia: { select: { id: true } },
 } as const;
 
 @Injectable()

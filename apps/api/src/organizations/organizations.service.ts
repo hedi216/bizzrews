@@ -51,6 +51,7 @@ export class OrganizationsService {
             timezone: true,
             defaultCurrency: true,
             marketplaceVisibility: true,
+            logoMedia: { select: { id: true } },
           },
         });
         return { organization, membership, business };
@@ -88,6 +89,7 @@ export class OrganizationsService {
                 timezone: true,
                 defaultCurrency: true,
                 marketplaceVisibility: true,
+                logoMedia: { select: { id: true } },
               },
             },
           },

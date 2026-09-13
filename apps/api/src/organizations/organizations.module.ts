@@ -23,6 +23,9 @@ import { PageBlocksController } from './page-blocks.controller';
 import { PageBlocksService } from './page-blocks.service';
 import { MarketplaceController } from './marketplace.controller';
 import { MarketplaceService } from './marketplace.service';
+import { MediaController } from './media.controller';
+import { MediaService } from './media.service';
+import { MediaStorageService } from './media-storage.service';
 
 @Module({
   imports: [AuthModule, DatabaseModule],
@@ -37,6 +40,7 @@ import { MarketplaceService } from './marketplace.service';
     ResourcesController,
     PageBlocksController,
     MarketplaceController,
+    MediaController,
   ],
   providers: [
     OrganizationsService,
@@ -51,6 +55,8 @@ import { MarketplaceService } from './marketplace.service';
     SchedulingService,
     PageBlocksService,
     MarketplaceService,
+    MediaService,
+    MediaStorageService,
   ],
 })
 export class OrganizationsModule {}

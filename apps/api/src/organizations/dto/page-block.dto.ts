@@ -8,6 +8,7 @@ export const PAGE_BLOCK_TYPES = [
   'ITINERARY',
   'FORM',
   'CTA',
+  'LOGO',
 ] as const;
 export type PageBlockTypeValue = (typeof PAGE_BLOCK_TYPES)[number];
 

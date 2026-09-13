@@ -38,7 +38,20 @@ const revisionSelect = {
   bufferAfterMinutes: true,
   pageBlocks: {
     orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
-    select: { id: true, type: true, position: true, config: true },
+    select: {
+      id: true,
+      type: true,
+      position: true,
+      config: true,
+      media: {
+        orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          id: true,
+          position: true,
+          mediaAsset: { select: { id: true } },
+        },
+      },
+    },
   },
 } satisfies Prisma.ExperienceRevisionSelect;
 
@@ -108,7 +121,33 @@ export class ExperiencesService {
           },
           select: revisionSelect,
         });
-        return { experience, draft };
+        await tx.pageBlock.createMany({
+          data: [
+            {
+              organizationId: business.organizationId,
+              experienceId: experience.id,
+              revisionId: draft.id,
+              type: 'HERO',
+              position: 0,
+              config: { headline: input.name },
+            },
+            {
+              organizationId: business.organizationId,
+              experienceId: experience.id,
+              revisionId: draft.id,
+              type: 'FORM',
+              position: 1,
+              config: { heading: 'Book your place' },
+            },
+          ],
+        });
+        return {
+          experience,
+          draft: await tx.experienceRevision.findUniqueOrThrow({
+            where: { id: draft.id },
+            select: revisionSelect,
+          }),
+        };
       });
       return {
         experience: result.experience,
@@ -160,7 +199,14 @@ export class ExperiencesService {
         slug: true,
         acceptingReservations: true,
         publishedRevisionId: true,
-        business: { select: { id: true, name: true, slug: true } },
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            logoMedia: { select: { id: true } },
+          },
+        },
         publishedRevision: { select: revisionSelect },
         revisions: {
           where: { publishedAt: null },
@@ -287,6 +333,7 @@ export class ExperiencesService {
           slug: true,
           acceptingReservations: true,
           organizationId: true,
+          businessId: true,
           business: {
             select: {
               organization: {
@@ -379,6 +426,7 @@ export class ExperiencesService {
         select: {
           id: true,
           organizationId: true,
+          businessId: true,
           publishedRevisionId: true,
           business: {
             select: {
@@ -424,7 +472,15 @@ export class ExperiencesService {
               options: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
             },
           },
-          pageBlocks: { orderBy: [{ position: 'asc' }, { id: 'asc' }] },
+          pageBlocks: {
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            include: {
+              media: {
+                orderBy: [{ position: 'asc' }, { id: 'asc' }],
+                include: { mediaAsset: { select: { id: true } } },
+              },
+            },
+          },
         },
       });
       if (!source)
@@ -502,20 +558,43 @@ export class ExperiencesService {
         fields.push({ ...cloned, options });
       }
       const pageBlocks = [];
-      for (const block of source.pageBlocks)
-        pageBlocks.push(
-          await tx.pageBlock.create({
-            data: {
-              organizationId: experience.organizationId,
-              experienceId,
-              revisionId: draft.id,
-              type: block.type,
-              position: block.position,
-              config: block.config as Prisma.InputJsonValue,
-            },
-            select: { id: true, type: true, position: true, config: true },
-          }),
-        );
+      for (const block of source.pageBlocks) {
+        const clonedBlock = await tx.pageBlock.create({
+          data: {
+            organizationId: experience.organizationId,
+            experienceId,
+            revisionId: draft.id,
+            type: block.type,
+            position: block.position,
+            config: block.config as Prisma.InputJsonValue,
+          },
+          select: { id: true, type: true, position: true, config: true },
+        });
+        const clonedMedia = [];
+        for (const media of block.media)
+          clonedMedia.push(
+            await tx.pageBlockMedia.create({
+              data: {
+                organizationId: experience.organizationId,
+                businessId: experience.businessId,
+                experienceId,
+                revisionId: draft.id,
+                pageBlockId: clonedBlock.id,
+                mediaAssetId: media.mediaAsset.id,
+                position: media.position,
+              },
+              select: {
+                id: true,
+                position: true,
+                mediaAsset: { select: { id: true } },
+              },
+            }),
+          );
+        pageBlocks.push({
+          ...clonedBlock,
+          media: clonedMedia,
+        });
+      }
       return { ...this.revision(draft), fields, pageBlocks };
     });
   }

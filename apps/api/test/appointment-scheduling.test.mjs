@@ -48,6 +48,8 @@ test('resource scheduling, DST slots, and generated booking concurrency', async 
       if (orgId) {
         for (const [table, trigger] of [
           ['ReservationEvent', 'bizzres_reservation_event_append_only'],
+          ['PageBlockMedia', 'bizzres_page_block_media_immutability'],
+          ['PageBlock', 'bizzres_page_block_immutability'],
           ['ExperienceRevision', 'bizzres_revision_immutability'],
         ])
           await db.$executeRawUnsafe(
@@ -75,6 +77,10 @@ test('resource scheduling, DST slots, and generated booking concurrency', async 
           await db.resourceWeeklyAvailability.deleteMany({
             where: { organizationId: orgId },
           });
+          await db.pageBlockMedia.deleteMany({
+            where: { organizationId: orgId },
+          });
+          await db.pageBlock.deleteMany({ where: { organizationId: orgId } });
           await db.experienceRevision.deleteMany({
             where: { organizationId: orgId },
           });
@@ -86,6 +92,12 @@ test('resource scheduling, DST slots, and generated booking concurrency', async 
           });
           await db.organization.delete({ where: { id: orgId } });
         } finally {
+          await db.$executeRawUnsafe(
+            'ALTER TABLE public."PageBlockMedia" ENABLE TRIGGER bizzres_page_block_media_immutability',
+          );
+          await db.$executeRawUnsafe(
+            'ALTER TABLE public."PageBlock" ENABLE TRIGGER bizzres_page_block_immutability',
+          );
           await db.$executeRawUnsafe(
             'ALTER TABLE public."ExperienceRevision" ENABLE TRIGGER bizzres_revision_immutability',
           );

@@ -11,6 +11,7 @@ export type Business = {
   timezone: string;
   defaultCurrency: string;
   marketplaceVisibility: 'UNLISTED' | 'LISTED';
+  logoMedia: { id: string } | null;
 };
 export type Organization = {
   id: string;
@@ -26,7 +27,12 @@ export type Experience = {
   publishedRevisionId: string | null;
   publishedRevision: Revision | null;
   draft: Revision | null;
-  business?: { id: string; name: string; slug: string };
+  business?: {
+    id: string;
+    name: string;
+    slug: string;
+    logoMedia: { id: string } | null;
+  };
 };
 export type Revision = {
   id: string;
@@ -64,12 +70,32 @@ export type Revision = {
   pageBlocks?: PageBlock[];
 };
 export type PageBlockType =
-  'HERO' | 'TEXT' | 'GALLERY' | 'LOCATION' | 'ITINERARY' | 'FORM' | 'CTA';
+  | 'HERO'
+  | 'TEXT'
+  | 'GALLERY'
+  | 'LOCATION'
+  | 'ITINERARY'
+  | 'FORM'
+  | 'CTA'
+  | 'LOGO';
+export type MediaAsset = {
+  id: string;
+  url?: string;
+  originalName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+export type PageBlockMedia = {
+  id: string;
+  position: number;
+  mediaAsset: MediaAsset;
+};
 export type PageBlock = {
   id: string;
   type: PageBlockType;
   position: number;
   config: Record<string, unknown>;
+  media: PageBlockMedia[];
 };
 export type DraftField = NonNullable<Revision['fields']>[number];
 export const fieldTypes = [
@@ -200,7 +226,9 @@ async function request<T>(
       ...init,
       credentials: 'include',
       headers: {
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init?.body && !(init.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init?.headers,
       },
@@ -303,6 +331,19 @@ export const dashboardApi = {
     request<Business>(`/businesses/${businessId}/marketplace`, token, {
       method: 'PATCH',
       body: JSON.stringify({ marketplaceVisibility }),
+    }),
+  uploadMedia: (token: string, businessId: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request<MediaAsset>(`/businesses/${businessId}/media`, token, {
+      method: 'POST',
+      body,
+    });
+  },
+  setBusinessLogo: (token: string, businessId: string, mediaId: string) =>
+    request<MediaAsset>(`/businesses/${businessId}/logo`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ mediaId }),
     }),
   createExperience: (
     token: string,
@@ -550,4 +591,45 @@ export const dashboardApi = {
       token,
       { method: 'DELETE' },
     ),
+  attachPageBlockMedia: (
+    token: string,
+    experienceId: string,
+    blockId: string,
+    mediaAssetId: string,
+    position: number,
+  ) =>
+    request<PageBlockMedia>(
+      `/experiences/${experienceId}/draft/page-blocks/${blockId}/media`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({ mediaAssetId, position }),
+      },
+    ),
+  reorderPageBlockMedia: (
+    token: string,
+    experienceId: string,
+    blockId: string,
+    mediaId: string,
+    position: number,
+  ) =>
+    request<{ id: string; position: number }>(
+      `/experiences/${experienceId}/draft/page-blocks/${blockId}/media/${mediaId}`,
+      token,
+      { method: 'PUT', body: JSON.stringify({ position }) },
+    ),
+  deletePageBlockMedia: (
+    token: string,
+    experienceId: string,
+    blockId: string,
+    mediaId: string,
+  ) =>
+    request<void>(
+      `/experiences/${experienceId}/draft/page-blocks/${blockId}/media/${mediaId}`,
+      token,
+      { method: 'DELETE' },
+    ),
 };
+
+export const dashboardMediaUrl = (mediaId: string) =>
+  `${API_URL}/public/media/${encodeURIComponent(mediaId)}`;

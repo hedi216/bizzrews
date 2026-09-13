@@ -12,9 +12,33 @@ import type {
   PageBlockTypeValue,
   UpdatePageBlockDto,
 } from './dto/page-block.dto';
+import type {
+  AttachPageBlockMediaDto,
+  ReorderPageBlockMediaDto,
+} from './dto/media.dto';
 import { OrganizationAccessService } from './organization-access.service';
 
-const select = { id: true, type: true, position: true, config: true } as const;
+const select = {
+  id: true,
+  type: true,
+  position: true,
+  config: true,
+  media: {
+    orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
+    select: {
+      id: true,
+      position: true,
+      mediaAsset: {
+        select: {
+          id: true,
+          originalName: true,
+          mimeType: true,
+          sizeBytes: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.PageBlockSelect;
 const allowed: Record<PageBlockTypeValue, string[]> = {
   HERO: ['headline', 'subheading'],
   TEXT: ['heading', 'body'],
@@ -23,6 +47,7 @@ const allowed: Record<PageBlockTypeValue, string[]> = {
   ITINERARY: ['heading', 'items'],
   FORM: ['heading', 'submitLabel'],
   CTA: ['label', 'href'],
+  LOGO: ['alignment', 'size'],
 };
 @Injectable()
 export class PageBlocksService {
@@ -73,6 +98,91 @@ export class PageBlocksService {
     const draft = await this.draft(u, e);
     const result = await this.db.client.pageBlock.deleteMany({
       where: { id, experienceId: e, revisionId: draft.id },
+    });
+    if (result.count !== 1) throw new NotFoundException('Resource not found.');
+  }
+  async attachMedia(
+    u: string,
+    e: string,
+    id: string,
+    input: AttachPageBlockMediaDto,
+  ) {
+    const draft = await this.draft(u, e);
+    const block = await this.db.client.pageBlock.findFirst({
+      where: { id, experienceId: e, revisionId: draft.id },
+      select: { id: true, type: true },
+    });
+    if (!block) throw new NotFoundException('Resource not found.');
+    if (!['HERO', 'GALLERY'].includes(block.type))
+      throw new BadRequestException('This section does not support images.');
+    if (
+      block.type === 'HERO' &&
+      (await this.db.client.pageBlockMedia.count({
+        where: { pageBlockId: id },
+      }))
+    )
+      throw new ConflictException('Remove the current Hero image first.');
+    const asset = await this.db.client.mediaAsset.findFirst({
+      where: {
+        id: input.mediaAssetId,
+        organizationId: draft.organizationId,
+        businessId: draft.businessId,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!asset) throw new NotFoundException('Resource not found.');
+    try {
+      return await this.db.client.pageBlockMedia.create({
+        data: {
+          organizationId: draft.organizationId,
+          businessId: draft.businessId,
+          experienceId: e,
+          revisionId: draft.id,
+          pageBlockId: id,
+          mediaAssetId: input.mediaAssetId,
+          position: input.position,
+        },
+        select: {
+          id: true,
+          position: true,
+          mediaAsset: {
+            select: {
+              id: true,
+              originalName: true,
+              mimeType: true,
+              sizeBytes: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.rethrowConflict(error);
+    }
+  }
+  async reorderMedia(
+    u: string,
+    e: string,
+    blockId: string,
+    mediaId: string,
+    input: ReorderPageBlockMediaDto,
+  ) {
+    const draft = await this.draft(u, e);
+    const found = await this.db.client.pageBlockMedia.findFirst({
+      where: { id: mediaId, pageBlockId: blockId, revisionId: draft.id },
+      select: { id: true },
+    });
+    if (!found) throw new NotFoundException('Resource not found.');
+    return this.db.client.pageBlockMedia.update({
+      where: { id: mediaId },
+      data: { position: input.position },
+      select: { id: true, position: true },
+    });
+  }
+  async removeMedia(u: string, e: string, blockId: string, mediaId: string) {
+    const draft = await this.draft(u, e);
+    const result = await this.db.client.pageBlockMedia.deleteMany({
+      where: { id: mediaId, pageBlockId: blockId, revisionId: draft.id },
     });
     if (result.count !== 1) throw new NotFoundException('Resource not found.');
   }
@@ -130,7 +240,7 @@ export class PageBlocksService {
       throw new ConflictException(
         'No editable draft exists for this experience.',
       );
-    return drafts[0];
+    return { ...drafts[0], businessId: experience.businessId };
   }
   private async ensureSingleForm(revisionId: string) {
     if (
@@ -141,5 +251,15 @@ export class PageBlocksService {
       throw new ConflictException(
         'A booking form block already exists in this draft.',
       );
+  }
+  private rethrowConflict(error: unknown): never {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      String(error.code) === 'P2002'
+    )
+      throw new ConflictException('This image is already attached.');
+    throw error;
   }
 }
