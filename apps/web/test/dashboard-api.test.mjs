@@ -1,7 +1,11 @@
 /* global Response */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dashboardApi, DashboardApiError } from '../lib/api/dashboard.ts';
+import {
+  dashboardApi,
+  DashboardApiError,
+  verifyDashboardMedia,
+} from '../lib/api/dashboard.ts';
 function mock(body = {}, status = 200) {
   let call;
   globalThis.fetch = async (url, init = {}) => {
@@ -90,4 +94,23 @@ test('draft scheduling preserves zero and positive buffers', async () => {
     bufferBeforeMinutes: 0,
     bufferAfterMinutes: 15,
   });
+});
+
+test('media delivery is verified before upload success is shown', async () => {
+  globalThis.fetch = async () =>
+    new Response(new Uint8Array([137, 80, 78, 71]), {
+      status: 200,
+      headers: { 'Content-Type': 'image/png' },
+    });
+  await verifyDashboardMedia('11111111-1111-4111-8111-111111111111');
+
+  globalThis.fetch = async () =>
+    new Response(null, {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+  await assert.rejects(
+    () => verifyDashboardMedia('11111111-1111-4111-8111-111111111111'),
+    /Image could not be loaded/,
+  );
 });

@@ -657,3 +657,17 @@ export const dashboardApi = {
 
 export const dashboardMediaUrl = (mediaId: string) =>
   `${API_URL}/public/media/${encodeURIComponent(mediaId)}`;
+
+export async function verifyDashboardMedia(mediaId: string) {
+  const response = await fetch(dashboardMediaUrl(mediaId), {
+    cache: 'no-store',
+  });
+  if (
+    !response.ok ||
+    !response.headers.get('content-type')?.startsWith('image/')
+  )
+    throw new DashboardApiError(response.status, 'Image could not be loaded.');
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength)
+    throw new DashboardApiError(response.status, 'Image could not be loaded.');
+}

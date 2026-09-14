@@ -1423,6 +1423,25 @@ footer {
   border-radius: 11px;
   background: var(--paper);
 }
+.media-load-error {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 100px;
+  padding: 14px;
+  border: 1px dashed var(--danger);
+  border-radius: 11px;
+  color: var(--danger);
+  background: #faece9;
+  text-align: center;
+}
+.media-load-error button {
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: inherit;
+  background: var(--paper);
+}
 .availability-kind {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

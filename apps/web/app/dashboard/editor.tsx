@@ -1,14 +1,13 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import Image from 'next/image';
 import {
   dashboardApi,
   type Business,
   type Experience,
   type Organization,
-  dashboardMediaUrl,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
+import { MediaPreview } from './media-preview';
 import { slugify } from '../../lib/builder-utils';
 export function BusinessEditor({
   business,
@@ -123,10 +122,9 @@ export function BusinessEditor({
           <p className="muted">Your logo can be placed in public pages.</p>
         </div>
         {business.logoMedia && (
-          <Image
-            unoptimized
+          <MediaPreview
             className="business-logo-preview"
-            src={dashboardMediaUrl(business.logoMedia.id)}
+            mediaId={business.logoMedia.id}
             alt={`${business.name} logo`}
             width={180}
             height={90}

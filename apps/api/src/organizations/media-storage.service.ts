@@ -11,9 +11,7 @@ const extensions: Record<string, string> = {
 
 @Injectable()
 export class MediaStorageService {
-  private readonly root = resolve(
-    process.env.MEDIA_LOCAL_ROOT ?? resolve(process.cwd(), '.data', 'media'),
-  );
+  private readonly root = localMediaRoot(process.env.MEDIA_LOCAL_ROOT);
 
   async put(mimeType: string, bytes: Buffer) {
     this.ensureLocal();
@@ -47,11 +45,17 @@ export class MediaStorageService {
   private ensureLocal() {
     const provider = process.env.MEDIA_STORAGE_PROVIDER;
     if (
-      provider !== 'LOCAL' &&
-      (provider !== undefined || process.env.NODE_ENV === 'production')
+      process.env.NODE_ENV === 'production' ||
+      (provider !== 'LOCAL' && provider !== undefined && provider.trim() !== '')
     )
       throw new ServiceUnavailableException(
         'A durable media storage provider must be configured.',
       );
   }
+}
+
+export function localMediaRoot(configured?: string) {
+  const value = configured?.trim();
+  if (value) return resolve(value);
+  return resolve(__dirname, '../../../..', '.data', 'media');
 }

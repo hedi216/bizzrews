@@ -9,6 +9,7 @@ import { createPrismaClient } from '@bizzres/database';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../dist/app.module.js';
 import { configureApp } from '../dist/configure-app.js';
+import { localMediaRoot } from '../dist/organizations/media-storage.service.js';
 
 test('experience media ownership, page placement, and publication safety', async (t) => {
   const db = createPrismaClient(process.env.DATABASE_URL || '');
@@ -124,9 +125,7 @@ test('experience media ownership, page placement, and publication safety', async
       where: { userId: { in: users } },
     });
     await db.user.deleteMany({ where: { id: { in: users } } });
-    const root = resolve(
-      process.env.MEDIA_LOCAL_ROOT ?? resolve(process.cwd(), '.data', 'media'),
-    );
+    const root = localMediaRoot(process.env.MEDIA_LOCAL_ROOT);
     for (const key of storedKeys) await rm(resolve(root, key), { force: true });
     await app.close();
     await db.$disconnect();
@@ -206,6 +205,25 @@ test('experience media ownership, page placement, and publication safety', async
   const publicImage = await fetch(`${base}/public/media/${image.body.id}`);
   assert.equal(publicImage.status, 200);
   assert.equal(publicImage.headers.get('content-type'), 'image/png');
+  assert.deepEqual(
+    Buffer.from(await publicImage.arrayBuffer()).subarray(0, 8),
+    png.subarray(0, 8),
+  );
+  for (const [asset, type, signature] of [
+    [jpegImage, 'image/jpeg', jpeg.subarray(0, 3)],
+    [webpImage, 'image/webp', Buffer.from('RIFF')],
+  ]) {
+    const response = await fetch(`${base}/public/media/${asset.body.id}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), type);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.ok(bytes.length > 0);
+    assert.deepEqual(bytes.subarray(0, signature.length), signature);
+  }
+  assert.equal(
+    (await fetch(`${base}/public/media/${randomUUID()}`)).status,
+    404,
+  );
 
   assert.equal(
     (
@@ -412,5 +430,16 @@ test('experience media ownership, page placement, and publication safety', async
   await assert.rejects(
     () => db.pageBlockMedia.delete({ where: { id: attached.body.id } }),
     (error) => String(error.message).includes('immutable'),
+  );
+  const missingFile = await db.mediaAsset.findUniqueOrThrow({
+    where: { id: webpImage.body.id },
+    select: { storageKey: true },
+  });
+  await rm(resolve(localMediaRoot(), missingFile.storageKey), {
+    force: true,
+  });
+  assert.equal(
+    (await fetch(`${base}/public/media/${webpImage.body.id}`)).status,
+    404,
   );
 });

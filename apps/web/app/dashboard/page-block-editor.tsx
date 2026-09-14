@@ -1,15 +1,15 @@
 'use client';
-import Image from 'next/image';
 import { useState } from 'react';
 import {
   dashboardApi,
-  dashboardMediaUrl,
+  verifyDashboardMedia,
   type Organization,
   type PageBlock,
   type PageBlockType,
   type Business,
 } from '../../lib/api/dashboard';
 import { useSession } from '../providers';
+import { MediaPreview } from './media-preview';
 
 const labels: Record<PageBlockType, string> = {
   HERO: 'Hero',
@@ -77,6 +77,7 @@ export function PageBlockEditor({
         dashboardApi.setBusinessLogo(token, businessId, asset.id),
       );
       onLogoChange({ id: asset.id });
+      await verifyDashboardMedia(asset.id);
       setMediaStatus('Logo updated. Draft preview refreshed.');
     } catch (value) {
       setError(message(value));
@@ -210,6 +211,7 @@ export function PageBlockEditor({
             0,
           ),
         );
+        await verifyDashboardMedia(asset.id);
         media = [attached];
       } else {
         for (const file of selected) {
@@ -225,6 +227,7 @@ export function PageBlockEditor({
               media.length,
             ),
           );
+          await verifyDashboardMedia(asset.id);
           media.push(attached);
         }
       }
@@ -300,10 +303,9 @@ export function PageBlockEditor({
           </p>
         </div>
         {business.logoMedia ? (
-          <Image
-            unoptimized
+          <MediaPreview
             className="business-logo-preview"
-            src={dashboardMediaUrl(business.logoMedia.id)}
+            mediaId={business.logoMedia.id}
             alt="Current business logo"
             width={180}
             height={100}
@@ -382,10 +384,9 @@ export function PageBlockEditor({
             {block.type === 'LOGO' && (
               <div className="logo-block-editor">
                 {business.logoMedia ? (
-                  <Image
-                    unoptimized
+                  <MediaPreview
                     className="business-logo-preview"
-                    src={dashboardMediaUrl(business.logoMedia.id)}
+                    mediaId={business.logoMedia.id}
                     alt="Business logo in this section"
                     width={180}
                     height={100}
@@ -422,9 +423,8 @@ export function PageBlockEditor({
                 <div className="media-grid">
                   {block.media.map((media, mediaIndex) => (
                     <div className="media-tile" key={media.id}>
-                      <Image
-                        unoptimized
-                        src={dashboardMediaUrl(media.mediaAsset.id)}
+                      <MediaPreview
+                        mediaId={media.mediaAsset.id}
                         alt="Uploaded presentation"
                         width={180}
                         height={110}
